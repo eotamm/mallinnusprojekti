@@ -46,7 +46,7 @@ for(k in seq_along(ids)){
   aloitus_pv <-min(data_id$summary_date)
   raskausviikko <- min(data_id$week)
   
-  
+  # Moi! Tässä minun ehdotus koodille
   # Lisätään päivät
   paiva_id <- tibble(id = i,
                       summary_date = seq(min(data_id$summary_date), max(data_id$summary_date), by = "day")) # Täydentää päivämäärät ja id. 
