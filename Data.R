@@ -6,15 +6,20 @@ library(haven)
 library(janitor)
 library(dplyr)
 
-dir.path <- file.path("./data") # symlink
-stopifnot(dir.exists(dir.path)) # tarkasta
+# Tähän kohtaan jouduin tekemään itse hieman muutoksia seuraavasti
 
-read_sas<- function(p) {
+dir.path <- "C:/Users/Ari/Documents/Ari Oura Projekti/Oura"
+stopifnot(dir.exists(dir.path))  
+
+# Funktio pysyy ennallaan
+read_sas <- function(p) {
   if (!file.exists(p)) {
     stop("Tiedostoa ei löydy: ", p)
   }
-  haven::read_sas(p) |> janitor::clean_names()
-} # Apufunktio datan tuomiseen.  
+  haven::read_sas(p)
+}
+
+# Sitten alla koodissa kun id:t oli pinellä niin ei toiminut minulla, niin laitoin isolla ID ja toimi
 
 # Haetaan aineisto. 
 activity_pregnancy  <- read_sas(file.path(dir.path, "activity_pregnancy.sas7bdat"))
