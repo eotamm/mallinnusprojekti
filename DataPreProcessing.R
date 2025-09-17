@@ -27,7 +27,9 @@ sleep_postpartum    <- read_sas(file.path(dir.path, "sleep_postpartum.sas7bdat")
 # Sunnitelma puutuvien ID -arvoje ja viikkonumerojen korjaamiseen. Pregnancy aineisto. 
 # Huom! Raskausviikkojen viikko ei ala välttämättä maanantai päivällä. Vaan esimerkiksi id(101) ensimmäinen päivä (2021-04-07) on keskiviikko. 
 # weekdays(as.Date("2021-04-07")) 
+# Tämä tiedosto vaatii tiedoston PreProcessingFuncs.R
 source("PreProcessingFuncs.R")
+
 
 #:______________________________________________________________________________
 #Tarkistus: (Huom! Tässä päivä numerot menevät seuraavasti: 1: Maanantai, 2: Tiistai, 3: Keskiviikko, 4: Torstai, 5: Perjanta, 6: Lauantai ja 7: Sunnuntai.)
@@ -59,7 +61,8 @@ for(i in uniikit_idt){
   }
   
 }
-data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
+# NA nolliksi (ei vielä)
+# data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
 data1 %>% View()
 #saveRDS(data1, file = "data/activity_pregnancy.rds")
 
@@ -90,7 +93,8 @@ for(i in uniikit_idt){
   }
   
 }
-data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
+# NA nolliksi (ei vielä)
+# data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
 data1 %>% View()
 #saveRDS(data1, file = "data/activity_postpartum.rds")
 
@@ -122,7 +126,8 @@ for(i in uniikit_idt){
   }
   
 }
-data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
+# NA nolliksi (ei vielä)
+# data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
 data1 %>% View()
 #saveRDS(data1, file = "data/sleep_pregnancy.rds")
 
@@ -153,7 +158,8 @@ for(i in uniikit_idt){
   }
   
 }
-data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
+# NA nolliksi (ei vielä)
+# data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
 data1 %>% View()
 #saveRDS(data1, file = "data/sleep_postpartum.rds")
 
