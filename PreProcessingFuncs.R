@@ -1,4 +1,38 @@
 # Apufunktioita:________________________________________________________________
+
+#Lukee SAS tiedoston ja yhtenäistää kolumnien nimet. 
+read_sas<- function(p) {
+  if (!file.exists(p)) {
+    stop("Tiedostoa ei löydy: ", p)
+  }
+  haven::read_sas(p) |> janitor::clean_names()
+}
+
+# Yhdistää sleep ja activity datat id, summary_date, week ja time sarakkeiden perusteella. 
+yhdistys <- function(df_activity, df_sleep){
+  n_row_activity<- nrow(df_activity)
+  n_row_sleep <-   nrow(df_sleep)
+  
+  if (n_row_sleep != n_row_activity) {
+    warning(paste0(
+      "Activity- ja Sleep-aineistot sisältävät eri määrän rivejä: ",
+      n_row_activity, " (activity) vs ", n_row_sleep, " (sleep)."
+    ))
+  }
+  
+  merged_df <- merge(df_activity, df_sleep, 
+                     by = c("id", "summary_date", "week"), 
+                     all = TRUE) 
+  
+  n_row_merged<- nrow(merged_df)
+  
+  if(n_row_merged!=n_row_activity){
+    warning("Lopullisessa aineistossa on vain",n_row_merged,"riviä \n
+            Kaikille riveille ei ole löydetty paria.",)
+  }
+  return(merged_df)
+}
+
 #Onko viikko täysi: ottaa vektorin päivämääriä
 viikko_taysi <- function(pvt) {
   pvt <- sort(unique(as.Date(pvt)))
@@ -147,3 +181,4 @@ sekunnit_minuteiksi <- function(x, digits = NULL) {
   if (!is.null(digits)) m <- round(m, digits)
   m
 }
+
