@@ -87,8 +87,6 @@ for(i in uniikit_idt){
   }
   
 }
-# NA nolliksi (ei vielä)
-# data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
 data1 %>% View()
 #saveRDS(data1, file = "data/activity_pregnancy.rds")
 activity_pregnancy <- data1
@@ -121,8 +119,6 @@ for(i in uniikit_idt){
   }
   
 }
-# NA nolliksi (ei vielä)
-# data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
 data1 %>% View()
 #saveRDS(data1, file = "data/activity_postpartum.rds")
 activity_postpartum <- data1
@@ -154,8 +150,6 @@ for(i in uniikit_idt){
   }
   
 }
-# NA nolliksi (ei vielä)
-# data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
 data1 %>% View()
 #saveRDS(data1, file = "data/sleep_pregnancy.rds")
 sleep_pregnancy <- data1
@@ -187,8 +181,6 @@ for(i in uniikit_idt){
   }
   
 }
-# NA nolliksi (ei vielä)
-# data1 <- data1 %>% mutate(across(where(is.numeric), ~ replace(., is.na(.), 0)))
 data1 %>% View()
 #saveRDS(data1, file = "data/sleep_postpartum.rds")
 sleep_postpartum <- data1
@@ -198,5 +190,66 @@ pregnancy<- yhdistys(activity_pregnancy, sleep_pregnancy)
 postpartum<- yhdistys(activity_postpartum, sleep_postpartum)
 
 # Yhdistä puuttuva muuttuja niiltä osin kuin on
+pregnancy <- pregnancy %>%
+  dplyr::left_join(
+    unen_laatu %>%
+      dplyr::mutate(
+        id = as.character(id),
+        summary_date = as.Date(summary_date)
+      ) %>%
+      dplyr::select(id, summary_date, score),
+    by = c("id", "summary_date")
+  )
 
-# Yhdistä meta data. 
+postpartum <- postpartum %>%
+  dplyr::left_join(
+    unen_laatu %>%
+      dplyr::mutate(
+        id = as.character(id),
+        summary_date = as.Date(summary_date)
+      ) %>%
+      dplyr::select(id, summary_date, score),
+    by = c("id", "summary_date")
+  )
+
+# Posita keskeyttäneet tai keskenmenon saaneet
+poista <- c("107","110","124","148","139","152")
+
+pregnancy  <- pregnancy  %>% filter(!(as.character(id) %in% poista))
+postpartum <- postpartum %>% filter(!(as.character(id) %in% poista))
+
+# Muuta non-wear na -> 1440, jos ei käyetty koko päivänä
+pregnancy <- pregnancy %>%
+  mutate(non_wear = ifelse(is.na(non_wear), 1440L, non_wear))
+
+postpartum <- postpartum %>%
+  mutate(non_wear = ifelse(is.na(non_wear), 1440L, non_wear))
+
+
+# Metadata
+metadata  <- read_sas(file.path(dir.path, "taustamuuttujat.sas7bdat")) %>% as.data.frame() %>% distinct()
+
+# Muuttujat faktoreiksi + tasojärjestykset
+metadata <- metadata1 %>%
+  mutate(
+    id = as.character(id),
+    
+    # trim + tyhjät -> NA kaikissa merkkikentissä (paitsi id)
+    across(where(is.character) & !matches("^id$"), ~ na_if(trimws(.), ""))
+  ) %>%
+  # yhtenäistä ikäluokat ennen faktorointia
+  mutate(
+    age_category = recode(age_category,
+                          "Under 3" = "Under 30",
+                          "Over 30" = "30 or more")
+  ) %>%
+  # kaikki paitsi id faktoreiksi
+  mutate(
+    across(-id, ~ factor(.))
+  ) %>%
+  # haluttu tasajärjestys (1. taso = 1)
+  mutate(
+    age_category   = factor(age_category,   levels = c("Under 30", "30 or more")),
+    gt_weight_gain = factor(gt_weight_gain, levels = c("within or less", "more than recommendat")),
+    epds_category  = factor(epds_category,  levels = c("No depression", "Possible depr"))
+  )
