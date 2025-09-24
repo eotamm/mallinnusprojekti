@@ -47,6 +47,7 @@ unen_laatu <- map_dfr(uniikit_idt, function(id) {
   
 })
 
+#113 ja 130 puuttuvat. 
 
 # Sunnitelma puutuvien ID -arvoje ja viikkonumerojen korjaamiseen. Pregnancy aineisto. 
 # Huom! Raskausviikkojen viikko ei ala välttämättä maanantai päivällä. Vaan esimerkiksi id(101) ensimmäinen päivä (2021-04-07) on keskiviikko. 
@@ -59,8 +60,6 @@ unen_laatu <- map_dfr(uniikit_idt, function(id) {
 #Tarkistus: (Huom! Tässä päivä numerot menevät seuraavasti: 1: Maanantai, 2: Tiistai, 3: Keskiviikko, 4: Torstai, 5: Perjanta, 6: Lauantai ja 7: Sunnuntai.)
 #Tallennetaan kaikki uniikit ID arvot.  
 # Haetaan aineisto. 
-
-uniikit_idt <- activity_pregnancy %>% dplyr::filter(id != 0) %>% dplyr::pull(id) %>% unique()
 
 data <- activity_pregnancy 
 data1 <- NULL
@@ -87,8 +86,7 @@ for(i in uniikit_idt){
   }
   
 }
-data1 %>% View()
-#saveRDS(data1, file = "data/activity_pregnancy.rds")
+#data1 %>% View()
 activity_pregnancy <- data1
 
 
@@ -119,8 +117,7 @@ for(i in uniikit_idt){
   }
   
 }
-data1 %>% View()
-#saveRDS(data1, file = "data/activity_postpartum.rds")
+#data1 %>% View()
 activity_postpartum <- data1
 
 uniikit_idt <- sleep_pregnancy %>% dplyr::filter(id != 0) %>% dplyr::pull(id) %>% unique()
@@ -150,8 +147,7 @@ for(i in uniikit_idt){
   }
   
 }
-data1 %>% View()
-#saveRDS(data1, file = "data/sleep_pregnancy.rds")
+#data1 %>% View()
 sleep_pregnancy <- data1
 
 uniikit_idt <- sleep_postpartum %>% dplyr::filter(id != 0) %>% dplyr::pull(id) %>% unique()
@@ -181,9 +177,9 @@ for(i in uniikit_idt){
   }
   
 }
-data1 %>% View()
-#saveRDS(data1, file = "data/sleep_postpartum.rds")
+#data1 %>% View()
 sleep_postpartum <- data1
+
 #Aineistojen yhdistäminen 
 
 pregnancy<- yhdistys(activity_pregnancy, sleep_pregnancy)
@@ -230,7 +226,7 @@ postpartum <- postpartum %>%
 metadata  <- read_sas(file.path(dir.path, "taustamuuttujat.sas7bdat")) %>% as.data.frame() %>% distinct()
 
 # Muuttujat faktoreiksi + tasojärjestykset
-metadata <- metadata1 %>%
+metadata <- metadata %>% #tässä oli metadata1 mutta en tiedä mistä se tulee?
   mutate(
     id = as.character(id),
     
@@ -240,7 +236,7 @@ metadata <- metadata1 %>%
   # yhtenäistä ikäluokat ennen faktorointia
   mutate(
     age_category = recode(age_category,
-                          "Under 3" = "Under 30",
+                          "Under 3" = "Under 30", # onko tarkoitus olla under 30
                           "Over 30" = "30 or more")
   ) %>%
   # kaikki paitsi id faktoreiksi
@@ -253,3 +249,26 @@ metadata <- metadata1 %>%
     gt_weight_gain = factor(gt_weight_gain, levels = c("within or less", "more than recommendat")),
     epds_category  = factor(epds_category,  levels = c("No depression", "Possible depr"))
   )
+
+# Liitetään meta-aineisto 
+pregnancy <- pregnancy %>%
+  dplyr::left_join(
+    metadata,
+    by = c("id")
+  )
+postpartum <- postpartum %>%
+  dplyr::left_join(
+    metadata,
+    by = c("id")
+  )
+#Tallennetaan 
+
+tanaan <- Sys.Date()#tänään
+
+# Luo tiedostonimet
+pregnancy_file <- paste0("data/pregnancy_", tanaan, ".rds")
+postpartum_file <- paste0("data/postpartum_", tanaan, ".rds")
+
+# Tallennus
+saveRDS(pregnancy, file = pregnancy_file)
+saveRDS(postpartum, file = postpartum_file)
