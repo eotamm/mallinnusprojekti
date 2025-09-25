@@ -282,7 +282,7 @@ plot_var_ts <- function(
     var,                  # Ei ota vektoria 
     facet = NULL         
 ) {
-  # guard: this plot is for pooled data only
+  # check
   if ("id" %in% names(dat)) {
     stop("`plot_var_ts()` expects pooled data (id = FALSE). Use the id-level plot for per-id lines.")
   }
@@ -323,7 +323,7 @@ plot_var_ts <- function(
 plot_var_id <- function(
     dat,
     var,
-    facet = NULL,          # can be quoted or unquoted column name
+    facet = NULL,          
     ids = NULL,
     overlay_mean = TRUE,
     line_alpha = 0.30,
@@ -337,7 +337,6 @@ plot_var_id <- function(
   tc   <- resolve_time_col(dat)
   cols <- pick_var_cols(dat, var)
   
-  # allow quoted or unquoted facet
   facet_sym <- if (is.null(facet)) NULL else rlang::ensym(facet)
   has_facet <- !is.null(facet_sym)
   time_sym  <- rlang::sym(tc$time_col)
@@ -359,7 +358,7 @@ plot_var_id <- function(
     ggplot2::theme_minimal(base_size = 12)
   
   if (isTRUE(overlay_mean)) {
-    # 1) yksi arvo per id per aika (+ facet)
+    # yksi arvo per id per aika (+ facet)
     per_id <- if (has_facet) {
       df |>
         dplyr::group_by(id, !!time_sym, !!facet_sym) |>
@@ -370,7 +369,7 @@ plot_var_id <- function(
         dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop")
     }
     
-    # 2) keskiarvo yli id:ien per aika (+ facet)
+    # keskiarvo yli id:ien per aika (+ facet)
     overlay <- if (has_facet) {
       per_id |>
         dplyr::group_by(!!time_sym, !!facet_sym) |>
@@ -420,7 +419,7 @@ plot_var_box <- function(
   time_sym  <- rlang::sym(tc$time_col)
   
   # Luodaan uusi sarake analyysiin
-  df <- dat |>
+  df <- dat %>% 
     dplyr::mutate(.mean = .data[[cols$mean_col]])
   
   if (!is.null(ids)) {
@@ -429,12 +428,12 @@ plot_var_box <- function(
   
   # Boxplotin data: yksi arvo per id, per time (+ facet)
   per_id <- if (has_facet) {
-    df |>
-      dplyr::group_by(id, !!time_sym, !!facet_sym) |>
+    df %>% 
+      dplyr::group_by(id, !!time_sym, !!facet_sym) %>% 
       dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop")
   } else {
-    df |>
-      dplyr::group_by(id, !!time_sym) |>
+    df %>% 
+      dplyr::group_by(id, !!time_sym) %>% 
       dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop")
   }
   
@@ -450,7 +449,7 @@ plot_var_box <- function(
       fill = NA
     ) +
     ggplot2::geom_jitter(
-      width = 0.15,            # vaakasuuntainen hajonta, ettei pisteet mene päällekkäin
+      width = 0.15,            
       alpha = point_alpha,
       size = point_size,
       colour = "#2C3E50"
