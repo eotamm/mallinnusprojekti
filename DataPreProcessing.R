@@ -227,22 +227,23 @@ postpartum <- postpartum %>%
 metadata  <- read_sas(file.path(dir.path, "taustamuuttujat.sas7bdat")) %>% as.data.frame() %>% distinct()
 
 # Muuttujat faktoreiksi + tasojärjestykset
-metadata <- metadata %>% #tässä oli metadata1 mutta en tiedä mistä se tulee?
-  dplyr:mutate(
+metadata <- metadata %>%
+  dplyr::mutate(
     id = as.character(id),
-    
     # trim + tyhjät -> NA kaikissa merkkikentissä (paitsi id)
-    across(where(is.character) & !matches("^id$"), ~ na_if(trimws(.), ""))
+    dplyr::across(where(is.character) & !dplyr::matches("^id$"), ~ na_if(trimws(.), ""))
   ) %>%
   # yhtenäistä ikäluokat ennen faktorointia
-  dplyr:mutate(
-    age_category = recode(age_category,
-                          "Under 3" = "Under 30", # onko tarkoitus olla under 30
-                          "Over 30" = "30 or more")
+  dplyr::mutate(
+    age_category = dplyr::recode(
+      age_category,
+      "Under 3" = "Under 30",
+      "Over 30" = "30 or more"
+    )
   ) %>%
   # kaikki paitsi id faktoreiksi
-  dplyr:mutate(
-    across(-id, ~ factor(.))
+  dplyr::mutate(
+    dplyr::across(-id, ~ factor(.))
   ) %>%
   # haluttu tasajärjestys (1. taso = 1)
   dplyr::mutate(
