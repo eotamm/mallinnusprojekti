@@ -22,8 +22,9 @@ sleep_pregnancy     <- read_sas(file.path(dir.path, "sleep_pregnancy.sas7bdat"))
 sleep_postpartum    <- read_sas(file.path(dir.path, "sleep_postpartum.sas7bdat")) %>% as.data.frame() %>% distinct()
 
 uniikit_idt <- activity_pregnancy %>% dplyr::filter(id != 0) %>% dplyr::pull(id) %>% unique()
-
-
+uniikit_idt2 <- activity_postpartum %>% dplyr::filter(id != 0) %>% dplyr::pull(id) %>% unique()
+uniikit_idt3 <- sleep_pregnancy %>% dplyr::filter(id != 0) %>% dplyr::pull(id) %>% unique()
+uniikit_idt4 <- sleep_postpartum %>% dplyr::filter(id != 0) %>% dplyr::pull(id) %>% unique()
 # Valitaan aluksi score 
 unen_laatu <- map_dfr(uniikit_idt, function(id) {
   # Tiedoston nimi: 
@@ -209,7 +210,7 @@ postpartum <- postpartum %>%
   )
 
 # Posita keskeyttäneet tai keskenmenon saaneet
-poista <- c("107","110","124","148","139","152")
+poista <- c("107","110","124","148","139","153")
 
 pregnancy  <- pregnancy  %>% filter(!(as.character(id) %in% poista))
 postpartum <- postpartum %>% filter(!(as.character(id) %in% poista))
@@ -227,24 +228,24 @@ metadata  <- read_sas(file.path(dir.path, "taustamuuttujat.sas7bdat")) %>% as.da
 
 # Muuttujat faktoreiksi + tasojärjestykset
 metadata <- metadata %>% #tässä oli metadata1 mutta en tiedä mistä se tulee?
-  mutate(
+  dplyr:mutate(
     id = as.character(id),
     
     # trim + tyhjät -> NA kaikissa merkkikentissä (paitsi id)
     across(where(is.character) & !matches("^id$"), ~ na_if(trimws(.), ""))
   ) %>%
   # yhtenäistä ikäluokat ennen faktorointia
-  mutate(
+  dplyr:mutate(
     age_category = recode(age_category,
                           "Under 3" = "Under 30", # onko tarkoitus olla under 30
                           "Over 30" = "30 or more")
   ) %>%
   # kaikki paitsi id faktoreiksi
-  mutate(
+  dplyr:mutate(
     across(-id, ~ factor(.))
   ) %>%
   # haluttu tasajärjestys (1. taso = 1)
-  mutate(
+  dplyr::mutate(
     age_category   = factor(age_category,   levels = c("Under 30", "30 or more")),
     gt_weight_gain = factor(gt_weight_gain, levels = c("within or less", "more than recommendat")),
     epds_category  = factor(epds_category,  levels = c("No depression", "Possible depr"))
