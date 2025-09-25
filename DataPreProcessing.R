@@ -226,7 +226,7 @@ postpartum <- postpartum %>%
 metadata  <- read_sas(file.path(dir.path, "taustamuuttujat.sas7bdat")) %>% as.data.frame() %>% distinct()
 
 # Muuttujat faktoreiksi + tasojärjestykset
-metadata <- metadata %>% #tässä oli metadata1 mutta en tiedä mistä se tulee?
+metadata <- metadata %>% 
   mutate(
     id = as.character(id),
     
@@ -236,7 +236,7 @@ metadata <- metadata %>% #tässä oli metadata1 mutta en tiedä mistä se tulee?
   # yhtenäistä ikäluokat ennen faktorointia
   mutate(
     age_category = recode(age_category,
-                          "Under 3" = "Under 30", # onko tarkoitus olla under 30
+                          "Under 3" = "Under 30",
                           "Over 30" = "30 or more")
   ) %>%
   # kaikki paitsi id faktoreiksi
