@@ -227,6 +227,7 @@ postpartum <- postpartum %>%
 metadata  <- read_sas(file.path(dir.path, "taustamuuttujat.sas7bdat")) %>% as.data.frame() %>% distinct()
 
 # Muuttujat faktoreiksi + tasojärjestykset
+
 metadata <- metadata %>%
   dplyr::mutate(
     id = as.character(id),
