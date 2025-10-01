@@ -64,7 +64,9 @@ agglomeroi <- function(
     min_obs = 1,        # Minimi määrä havaintoja per ryhmä
     compute_ci = FALSE, # Haluatko 95% CI välin (bootstrap)
     conf_level = 0.95,  # Confidence level for CI
-    time = c("pre", "post") # Jos haluat kolmannekset (3vk) post partumille annan tähän "post" valinnan trimester kanssa. 
+    time = c("pre", "post"), # Jos haluat kolmannekset (3vk) post partumille annan tähän "post" valinnan trimester kanssa. 
+    R_boot = 2000L, 
+    block_len = NULL 
 ){
   # --- Tarkistus ---------------------------------------------------------------
 
@@ -186,12 +188,39 @@ agglomeroi <- function(
   }
   
   # ---  Bootstrap-apufunktio ----------------------------------------- Tämän voisi ehkä siirtää ulkopuolelle niin ei run joka kerta. 
-  bootstrap_ci <- function(x, conf = 0.95, R = 1000L) {
-    x <- x[!is.na(x)]
-    if (!length(x)) return(c(lower = NA_real_, upper = NA_real_))
-    means <- replicate(R, mean(sample(x, replace = TRUE)))
-    q <- stats::quantile(means, probs = c((1 - conf) / 2, 1 - (1 - conf) / 2), names = FALSE)
-    stats::setNames(q, c("lower", "upper"))
+  # bootstrap_ci <- function(x, conf = 0.95, R = 1000L) {
+  #   x <- x[!is.na(x)]
+  #   if (!length(x)) return(c(lower = NA_real_, upper = NA_real_))
+  #   means <- replicate(R, mean(sample(x, replace = TRUE)))
+  #   q <- stats::quantile(means, probs = c((1 - conf) / 2, 1 - (1 - conf) / 2), names = FALSE)
+  #   stats::setNames(q, c("lower", "upper"))
+  # }
+  # Block bootstrap CI aikasarjan keskiarvolle (percentile CI)
+  bootstrap_ci <- function(x, conf = 0.95, R = 2000L, block_len = NULL, na_rm = TRUE) {
+    x <- if (na_rm) x[is.finite(x)] else x
+    n <- length(x) 
+    print(n)
+    if (n == 0) return(c(lower = NA_real_, upper = NA_real_))
+    if (is.null(block_len)) block_len <- ceiling(n^(1/3))  # peukalosääntö
+    # montako blokkia tarvitaan kattamaan pituus n
+    B <- ceiling(n / block_len)
+    
+    # circular indeksointi (wrap-around)
+    circ_index <- function(start, len) {
+      idx <- start + seq_len(len) - 1L
+      ((idx - 1L) %% n) + 1L
+    }
+    
+    means <- numeric(R)
+    for (r in seq_len(R)) {
+      # arvo B aloitusindeksiä 1..n, liimaa blokit peräkkäin
+      starts <- sample.int(n, B, replace = TRUE)
+      idx    <- unlist(lapply(starts, circ_index, len = block_len), use.names = FALSE)
+      idx    <- idx[seq_len(n)]              # leikkaa täsmälleen pituuteen n
+      means[r] <- mean(x[idx])
+    }
+    q <- stats::quantile(means, probs = c((1 - conf)/2, 1 - (1 - conf)/2), names = FALSE, type = 7)
+    stats::setNames(q, c("lower","upper"))
   }
    # Aggregointi: 
   agg_df <- df %>%  
@@ -210,12 +239,30 @@ agglomeroi <- function(
   }
   
   #Lisää luottamusväli
+  # if (compute_ci) {
+  #   bootstrap_summary <- function(x, conf = 0.95, R = 1000) {
+  #     means <- replicate(R, mean(sample(x, replace = TRUE), na.rm = TRUE))
+  #     stats::quantile(means, probs = c((1 - conf) / 2, 1 - (1 - conf) / 2), na.rm = TRUE)
+  #   }
+  #   
+  #   agg_df <- df |>
+  #     dplyr::group_by(dplyr::across(all_of(group_vars))) |>
+  #     dplyr::filter(dplyr::n() >= min_obs) |>
+  #     dplyr::summarise(
+  #       dplyr::across(
+  #         all_of(var),
+  #         list(
+  #           mean = ~ mean(.x, na.rm = TRUE),
+  #           lower = ~ bootstrap_summary(.x, conf_level)[1], # change this
+  #           upper = ~ bootstrap_summary(.x, conf_level)[2]
+  #         ),
+  #         .names = "{.col}_{.fn}"
+  #       ),
+  #       .groups = "drop"
+  #     )
+  # }
+  
   if (compute_ci) {
-    bootstrap_summary <- function(x, conf = 0.95, R = 1000) {
-      means <- replicate(R, mean(sample(x, replace = TRUE), na.rm = TRUE))
-      stats::quantile(means, probs = c((1 - conf) / 2, 1 - (1 - conf) / 2), na.rm = TRUE)
-    }
-    
     agg_df <- df |>
       dplyr::group_by(dplyr::across(all_of(group_vars))) |>
       dplyr::filter(dplyr::n() >= min_obs) |>
@@ -223,9 +270,11 @@ agglomeroi <- function(
         dplyr::across(
           all_of(var),
           list(
-            mean = ~ mean(.x, na.rm = TRUE),
-            lower = ~ bootstrap_summary(.x, conf_level)[1],
-            upper = ~ bootstrap_summary(.x, conf_level)[2]
+            mean  = ~ mean(.x, na.rm = TRUE),
+            lower = ~ bootstrap_ci(.x, conf = conf_level, R = R_boot,
+                                   block_len = block_len, na_rm = TRUE)["lower"],
+            upper = ~ bootstrap_ci(.x, conf = conf_level, R = R_boot,
+                                   block_len = block_len, na_rm = TRUE)["upper"]
           ),
           .names = "{.col}_{.fn}"
         ),
@@ -276,7 +325,7 @@ pick_var_cols <- function(dat, var) {
 }
 
 
-#______Line plots_________________--____________________________________________
+#______Line plots_____________________________________________________________
 plot_var_ts <- function(
     dat,                  # agglomeroi(..., id = FALSE, compute_ci = TRUE)  
     var,                  # Ei ota vektoria 
@@ -471,15 +520,17 @@ plot_var_box <- function(
 p1_preg<- plot_histo_kaikki(pregnancy,  "duration", "age_category", bins= 30, title="Yleinen unen pituus alle ja yli 30 vuotiailla", mode="facet")
 p2_preg<- plot_histo_kaikki(pregnancy,  "steps", "age_category", bins= 30, title="Yleinen askelten määrä pituus alle ja yli 30 vuotiailla", mode="facet")
 
-p1_post<- plot_histo_kaikki(postpartum_df,  "duration","age_category", bins= 30, title="Yleinen unen pituus alle ja yli 30 vuotiailla", mode="facet")
-p2_post<- plot_histo_kaikki(postpartum_df,  "steps", bins= 30, title="Yleinen askelten määrä pituus alle ja yli 30 vuotiailla", mode="facet")
+p1_post<- plot_histo_kaikki(postpartum,  "duration","age_category", bins= 30, title="Yleinen unen pituus alle ja yli 30 vuotiailla", mode="facet")
+p2_post<- plot_histo_kaikki(postpartum,  "steps", "age_category",bins= 30, title="Yleinen askelten määrä pituus alle ja yli 30 vuotiailla", mode="facet")
 
 wrap_plots(p1_preg,p1_post)
-wrap_plots(p2_preg,p2_post)
+wrap_plots(p2_preg,p2_post, ncol=1)
 
 
 #Testataan agglomeraatio funktiota: 
-testi1<- agglomeroi(pregnancy, c("steps", "duration"), NULL, "week", id=FALSE, format="long", compute_ci = FALSE) 
+testi_pre<- agglomeroi(pregnancy, c("steps", "duration","score"), NULL, "week", id=FALSE, format="long", compute_ci = TRUE) 
+testi_post<- agglomeroi(postpartum, c("steps", "duration","score"), NULL, "week", id=FALSE, format="long", compute_ci = TRUE) 
+
 testi2<- agglomeroi(pregnancy, c("steps", "duration"), "education", "week", id=FALSE, format="long", compute_ci = FALSE)
 testi2.2<- agglomeroi(pregnancy, c("steps", "duration"), "education", "week", id=FALSE, format="long", compute_ci = TRUE)
 testi3<- agglomeroi(pregnancy, c("steps", "duration"), NULL, "week", id=TRUE, format="long", compute_ci = FALSE)
@@ -491,9 +542,28 @@ agglomeroi(pregnancy, c("steps", "duration"), NULL, "trimester", id=TRUE, format
 
 
 plot_var_ts(testi2, "steps", "education")
+
+
+
+p1 <- plot_var_ts(testi_pre, "steps") + ggtitle("Prepartum")
+p2 <- plot_var_ts(testi_post, "steps") + ggtitle("Postpartum")
+p3 <- plot_var_ts(testi_pre, "duration")
+p4 <- plot_var_ts(testi_post, "duration")
+p5 <- plot_var_ts(testi_pre, "score")
+p6 <- plot_var_ts(testi_post, "score")
+
+((p1 | p2) / (p3 | p4) /(p5|p6)) + 
+  plot_annotation(title = "Askeleet, unen kesto ja laatu")&
+theme(plot.title = element_text(hjust = 0.5))
+
+
+
 plot_var_ts(testi2.2, "duration", "education")
 plot_var_id(testi3, "steps",facet="delivery_method")
 
 
 plot_var_id(testi_tri1, "steps", "delivery_method")
 plot_var_box(testi_tri1, "steps", "delivery_method")
+
+plot_var_box(testi_tri1, "steps")
+
