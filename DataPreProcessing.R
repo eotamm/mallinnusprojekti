@@ -48,7 +48,7 @@ unen_laatu <- map_dfr(uniikit_idt, function(id) {
   
 })
 
-#113 ja 130 puuttuvat. 
+#130 puuttuvat. 
 
 # Sunnitelma puutuvien ID -arvoje ja viikkonumerojen korjaamiseen. Pregnancy aineisto. 
 # Huom! Raskausviikkojen viikko ei ala välttämättä maanantai päivällä. Vaan esimerkiksi id(101) ensimmäinen päivä (2021-04-07) on keskiviikko. 
@@ -226,8 +226,8 @@ postpartum <- postpartum %>%
 # Metadata
 metadata  <- read_sas(file.path(dir.path, "taustamuuttujat.sas7bdat")) %>% as.data.frame() %>% distinct()
 
-# Muuttujat faktoreiksi + tasojärjestykset
 
+# Muuttujat faktoreiksi + tasojärjestykset
 metadata <- metadata %>%
   dplyr::mutate(
     id = as.character(id),
@@ -253,6 +253,35 @@ metadata <- metadata %>%
     epds_category  = factor(epds_category,  levels = c("No depression", "Possible depr"))
   )
 
+# Metadata 153
+sarakenimet <- metadata %>% names()
+non_id_cols <- setdiff(names(metadata), "id")
+meta153<- read_excel(file.path(dir.path,"SLIM_data_analyyseihin_Johanna.xlsx"), sheet = "TAUSTATIEDOT SLIM siivottu") %>% 
+  dplyr::filter(name=="user153") 
+
+meta153 <- meta153 %>% 
+  mutate(
+    id = str_extract(name, "\\d+"), 
+    age_category = case_when(                              # 2-luokkainen kuten metadatassa
+      suppressWarnings(as.numeric(age)) < 30 ~ "Under 30",
+      suppressWarnings(as.numeric(age)) >= 30 ~ "30 or more",
+      TRUE ~ NA_character_
+    ),
+    education = NA_character_, 
+    previous_children = `prev children categ` %>%
+      as.character() %>% trimws() %>% na_if(""),
+    epds_category=NA_character_, 
+    bmi_bl2=NA_character_, 
+    gt_weight_gain=NA_character_,
+    gt_weight_gain_within_or_less=NA_character_, 
+    pp_weight_lost=NA_character_,
+    delivery_method=NA_character_
+  ) %>% dplyr::select(any_of(sarakenimet)) %>% dplyr::mutate(
+    dplyr::across(all_of(non_id_cols), ~ as.factor(.))
+  )
+
+
+metadata <- bind_rows(metadata,meta153)
 # Liitetään meta-aineisto 
 pregnancy <- pregnancy %>%
   dplyr::left_join(
@@ -273,5 +302,5 @@ pregnancy_file <- paste0("data/pregnancy_", tanaan, ".rds")
 postpartum_file <- paste0("data/postpartum_", tanaan, ".rds")
 
 # Tallennus
-saveRDS(pregnancy, file = pregnancy_file)
-saveRDS(postpartum, file = postpartum_file)
+#saveRDS(pregnancy, file = pregnancy_file)
+#saveRDS(postpartum, file = postpartum_file)
