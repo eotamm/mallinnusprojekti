@@ -259,25 +259,3 @@ taulukoi_mallit(m0, m1,m_df3, m_df4, m_df5, m_df6,
                 spline_mallit = c(FALSE, FALSE, TRUE, TRUE, TRUE, TRUE),
                 taulukon_nimi = "Splinien vaikutus raskauden raskauden jälekeen")
 
-#Muuta: 
-# Ennustedata
-week_seq <- seq(min(dat$week), max(dat$week), length.out = 100)
-newdata <- data.frame(
-  week = week_seq,
-  steps_z = mean(dat$steps_z, na.rm = TRUE)
-)
-newdata$pred_df3 <- predict(m_df3, newdata, level=0)
-newdata$pred_df4 <- predict(m_df4, newdata, level=0)
-newdata$pred_df5 <- predict(m_df5, newdata, level=0)
-newdata$pred_df6 <- predict(m_df6, newdata, level=0)
-
-ggplot(newdata, aes(x = week)) +
-  geom_line(aes(y = pred_df3, color = "df = 3"), size = 1) +
-  geom_line(aes(y = pred_df4, color = "df = 4"), size = 1) +
-  geom_line(aes(y = pred_df5, color = "df = 5"), size = 1) +
-  geom_line(aes(y = pred_df6, color = "df = 6"), size = 1) +
-  labs(title = "Spline-mallien ennustekäyrät eri vapausasteilla",
-       x = "Viikko", y = "Ennustettu duration",
-       color = "Spline df") +
-  theme_minimal()
-
