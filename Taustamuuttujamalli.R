@@ -325,7 +325,15 @@ plot_interaction_facets(by = "epds_category",
                         focal = "average_met_mean3_z",
                         xlab = "Aktiivisuus (z)")
 
+# Education-kategorian interaktio kaikissa neljässä mallissa
+plot_interaction_facets(by = "education",
+                        focal = "average_met_mean3_z",
+                        xlab = "Aktiivisuus (z)")
 
+# Previous-kategorian interaktio kaikissa neljässä mallissa
+plot_interaction_facets(by = "previous_children",
+                        focal = "average_met_mean3_z",
+                        xlab = "Aktiivisuus (z)")
 
 
 
