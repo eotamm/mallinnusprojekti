@@ -11,6 +11,10 @@ library(broom.mixed)
 library(stringr)
 library(ggeffects)
 library(fs)
+library(nlme)
+library(splines)
+library(ggh4x)
+
 
 dir.path <- file.path("./data") # symlink 
 #dir.path <- file.path("../../Seafile/Projektikurssi") # Arille 
@@ -19,40 +23,6 @@ dir.path <- file.path("./data") # symlink
 # Haetaan puhdisteut aineistot
 pregnancy  <- readRDS(file.path(dir.path, "pregnancy_2025-10-09.rds"))  %>% as.data.frame()
 postpartum <- readRDS(file.path(dir.path, "postpartum_2025-10-09.rds")) %>% as.data.frame()
-
-# Uusi muuttuja
-pregnancy <- pregnancy %>%
-  arrange(id, summary_date) %>%       # make sure data are in order
-  group_by(id) %>%
-  mutate(
-    average_met_mean3 = rollapply(
-      average_met,
-      width = 3,                     # 3 days: today + 2 days before
-      FUN = mean,
-      align = "right",               # so each day gets mean of itself and 2 before
-      fill = NA                      # first two days will be NA
-    )
-  ) %>%
-  ungroup()
-
-postpartum <- postpartum %>%
-  arrange(id, summary_date) %>%       # make sure data are in order
-  group_by(id) %>%
-  mutate(
-    average_met_mean3 = rollapply(
-      average_met,
-      width = 3,                     # 3 days: today + 2 days before
-      FUN = mean,
-      align = "right",               # so each day gets mean of itself and 2 before
-      fill = NA                      # first two days will be NA
-    )
-  ) %>%
-  ungroup()
-
-
-pregnancy$average_met_mean3_z <- as.numeric(scale(pregnancy$average_met_mean3))
-postpartum$average_met_mean3_z <- as.numeric(scale(postpartum$average_met_mean3))
-
 
 # Muunna duration tunneiksi
 pregnancy  <- pregnancy  %>% mutate(duration = duration / 3600)
@@ -70,13 +40,6 @@ set_ref_levels_safe <- function(df) {
   df
 }
 
-
-pregnancy$delivery_method <- factor(pregnancy$delivery_method,
-                             levels = c(1, 2, 3),
-                             labels = c("Vaginal", "Vacuum-assisted", "Caesarian section"))
-pregnancy$delivery_method <- relevel(pregnancy$delivery_method, ref = "Vaginal")
-
-
 postpartum$delivery_method <- factor(postpartum$delivery_method,
                                     levels = c(1, 2, 3),
                                     labels = c("Vaginal", "Vacuum-assisted", "Caesarian section"))
@@ -85,6 +48,26 @@ postpartum$delivery_method <- relevel(postpartum$delivery_method, ref = "Vaginal
 
 pregnancy  <- set_ref_levels_safe(pregnancy)
 postpartum <- set_ref_levels_safe(postpartum)
+
+# Lag1 muuttuja
+pregnancy <- pregnancy %>%
+  arrange(id, summary_date) %>%  # ensure correct order
+  group_by(id) %>%               # for each person
+  mutate(average_met_lag1 = lag(average_met, n = 1)) %>%  # previous day's average_met
+  ungroup()
+
+postpartum <- postpartum %>%
+  arrange(id, summary_date) %>%  # ensure correct order
+  group_by(id) %>%               # for each person
+  mutate(average_met_lag1 = lag(average_met, n = 1)) %>%  # previous day's average_met
+  ungroup()
+
+# Skaalaukset
+pregnancy$average_met = scale(pregnancy$average_met)
+postpartum$average_met = scale(postpartum$average_met)
+pregnancy$average_met_lag1 = scale(pregnancy$average_met_lag1)
+postpartum$average_met_lag1 = scale(postpartum$average_met_lag1)
+
 
 
 # Tallennus kansio
@@ -95,14 +78,14 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Taustamuuttuja mallit
 ## PREGNANCY — DURATION
-
-m_preg_dur_base <- lmer(
-  duration ~ average_met_mean3_z +
+m_preg_dur_base <- lme(
+  fixed = duration ~ average_met +
     age_category + education + previous_children +
     epds_category + bmi_bl2 + gt_weight_gain +
-    ns(week, df = 3) +
-    (1 | id),
-  data = pregnancy, REML = TRUE
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy, method = "REML", na.action = na.omit
 )
 summary(m_preg_dur_base)
 
@@ -117,12 +100,13 @@ ggsave(file.path(out_dir, "coef_preg_dur_base.png"),
 
 
 # Interaktiot
-m_preg_dur_int <- lmer(
-  duration ~ average_met_mean3_z * (age_category + education + previous_children +
-                                      epds_category + bmi_bl2 + gt_weight_gain) +
-    ns(week, df = 3) +
-    (1 | id),
-  data = pregnancy, REML = TRUE
+m_preg_dur_int <- lme(
+  fixed = duration ~ average_met * (age_category + education + previous_children +
+                                              epds_category + bmi_bl2 + gt_weight_gain) +
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy, method = "REML", na.action = na.omit
 )
 summary(m_preg_dur_int)
 
@@ -135,18 +119,17 @@ print(coef_preg_dur_int)
 ggsave(file.path(out_dir, "coef_preg_dur_int.png"),
        coef_preg_dur_int, width = 10, height = 6, dpi = 300)
 
-anova(m_preg_dur_base, m_preg_dur_int)
-
 
 ## PREGNANCY — SCORE
 
-m_preg_score_base <- lmer(
-  score ~ average_met_mean3_z +
+m_preg_score_base <- lme(
+  fixed = score ~ average_met_lag1 +
     age_category + education + previous_children +
     epds_category + bmi_bl2 + gt_weight_gain +
-    ns(week, df = 3) +
-    (1 | id),
-  data = pregnancy, REML = TRUE
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy, method = "REML", na.action = na.omit
 )
 summary(m_preg_score_base)
 
@@ -161,12 +144,13 @@ ggsave(file.path(out_dir, "coef_preg_score_base.png"),
 
 
 # Interaktiot
-m_preg_score_int <- lmer(
-  score ~ average_met_mean3_z * (age_category + education + previous_children +
-                                   epds_category + bmi_bl2 + gt_weight_gain) +
-    ns(week, df = 3) +
-    (1 | id),
-  data = pregnancy, REML = TRUE
+m_preg_score_int <- lme(
+  fixed = score ~ average_met_lag1 * (age_category + education + previous_children +
+                                           epds_category + bmi_bl2 + gt_weight_gain) +
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy, method = "REML", na.action = na.omit
 )
 summary(m_preg_score_int)
 
@@ -179,22 +163,65 @@ print(coef_preg_score_int)
 ggsave(file.path(out_dir, "coef_preg_score_int.png"),
        coef_preg_score_int, width = 10, height = 6, dpi = 300)
 
-anova(m_preg_score_base, m_preg_score_int)
+
+## PREGNANCY — EFFICIENCY
+
+m_preg_eff_base <- lme(
+  fixed = efficiency ~ average_met +
+    age_category + education + previous_children +
+    epds_category + bmi_bl2 + gt_weight_gain +
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy, method = "REML", na.action = na.omit
+)
+summary(m_preg_eff_base)
+
+# Plot
+coef_preg_eff_base <- plot_coef_forest_pretty(
+  m_preg_eff_base,
+  title = "Pregnancy: efficiency — kertoimet (ei interaktioita)"
+)
+print(coef_preg_eff_base)
+ggsave(file.path(out_dir, "coef_preg_eff_base.png"),
+       coef_preg_eff_base, width = 10, height = 6, dpi = 300)
+
+# Interaktiot
+m_preg_eff_int <- lme(
+  fixed = efficiency ~ average_met * (age_category + education + previous_children +
+                                        epds_category + bmi_bl2 + gt_weight_gain) +
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy, method = "REML", na.action = na.omit
+)
+summary(m_preg_eff_int)
+
+# Plot
+coef_preg_eff_int <- plot_coef_forest_pretty(
+  m_preg_eff_int,
+  title = "Pregnancy: efficiency — kertoimet (interaktiot mukana)"
+)
+print(coef_preg_eff_int)
+ggsave(file.path(out_dir, "coef_preg_eff_int.png"),
+       coef_preg_eff_int, width = 10, height = 6, dpi = 300)
+
+
 
 
 
 ## POSTPARTUM — DURATION
 
-m_post_dur_base <- lmer(
-  duration ~ average_met_mean3_z +
+m_post_dur_base <- lme(
+  fixed = duration ~ average_met +
     age_category + education + previous_children +
     epds_category + bmi_bl2 + gt_weight_gain +
     pp_weight_lost + delivery_method +
-    ns(week, df = 3) +
-    (1 | id),
-  data = postpartum, REML = TRUE
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = postpartum, method = "REML", na.action = na.omit
 )
-
 summary(m_post_dur_base)
 
 # Plot
@@ -208,13 +235,14 @@ ggsave(file.path(out_dir, "coef_post_dur_base.png"),
 
 
 # Interaktiot
-m_post_dur_int <- lmer(
-  duration ~ average_met_mean3_z * (age_category + education + previous_children +
-                                      epds_category + bmi_bl2 + gt_weight_gain +
-                                      pp_weight_lost + delivery_method) +
-    ns(week, df = 3) +
-    (1 | id),
-  data = postpartum, REML = TRUE
+m_post_dur_int <- lme(
+  fixed = duration ~ average_met * (age_category + education + previous_children +
+                                              epds_category + bmi_bl2 + gt_weight_gain +
+                                              pp_weight_lost + delivery_method) +
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = postpartum, method = "REML", na.action = na.omit
 )
 summary(m_post_dur_int)
 
@@ -227,22 +255,20 @@ print(coef_post_dur_int)
 ggsave(file.path(out_dir, "coef_post_dur_int.png"),
        coef_post_dur_int, width = 10, height = 6, dpi = 300)
 
-anova(m_post_dur_base, m_post_dur_int)
-
 
 
 ## POSTPARTUM — SCORE
 
-m_post_score_base <- lmer(
-  score ~ average_met_mean3_z +
+m_post_score_base <- lme(
+  fixed = score ~ average_met_lag1 +
     age_category + education + previous_children +
     epds_category + bmi_bl2 + gt_weight_gain +
     pp_weight_lost + delivery_method +
-    ns(week, df = 3) +
-    (1 | id),
-  data = postpartum, REML = TRUE
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = postpartum, method = "REML", na.action = na.omit
 )
-
 summary(m_post_score_base)
 
 # Plot
@@ -256,13 +282,14 @@ ggsave(file.path(out_dir, "coef_post_score_base.png"),
 
 
 # Interaktiot
-m_post_score_int <- lmer(
-  score ~ average_met_mean3_z * (age_category + education + previous_children +
-                                   epds_category + bmi_bl2 + gt_weight_gain +
-                                   pp_weight_lost + delivery_method) +
-    ns(week, df = 3) +
-    (1 | id),
-  data = postpartum, REML = TRUE
+m_post_score_int <- lme(
+  fixed = score ~ average_met_lag1 * (age_category + education + previous_children +
+                                           epds_category + bmi_bl2 + gt_weight_gain +
+                                           pp_weight_lost + delivery_method) +
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = postpartum, method = "REML", na.action = na.omit
 )
 summary(m_post_score_int)
 
@@ -275,65 +302,81 @@ print(coef_post_score_int)
 ggsave(file.path(out_dir, "coef_post_score_int.png"),
        coef_post_score_int, width = 10, height = 6, dpi = 300)
 
-anova(m_post_score_base, m_post_score_int)
 
 
+## POSTPARTUM — EFFICIENCY
 
-
-# Merkitsevät interaktiot
-# Pregnancy — duration
-plot_all_sig_interactions(
-  m_preg_dur_int,
-  model_tag = "preg_duration",
-  focal    = "average_met_mean3_z",
-  outdir   = out_dir,
-  alpha    = 0.05
+m_post_eff_base <- lme(
+  fixed = efficiency ~ average_met +
+    age_category + education + previous_children +
+    epds_category + bmi_bl2 + gt_weight_gain +
+    pp_weight_lost + delivery_method +
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = postpartum, method = "REML", na.action = na.omit
 )
+summary(m_post_eff_base)
 
-# Pregnancy — score
-plot_all_sig_interactions(
-  m_preg_score_int,
-  model_tag = "preg_score",
-  focal    = "average_met_mean3_z",
-  outdir   = out_dir,
-  alpha    = 0.05
+# Plot
+coef_post_eff_base <- plot_coef_forest_pretty(
+  m_post_eff_base,
+  title = "Postpartum: efficiency — kertoimet (ei interaktioita)"
 )
+print(coef_post_eff_base)
+ggsave(file.path(out_dir, "coef_post_eff_base.png"),
+       coef_post_eff_base, width = 10, height = 6, dpi = 300)
 
-# Postpartum — duration
-plot_all_sig_interactions(
-  m_post_dur_int,
-  model_tag = "post_duration",
-  focal    = "average_met_mean3_z",
-  outdir   = out_dir,
-  alpha    = 0.05
+# Interaktiot
+m_post_eff_int <- lme(
+  fixed = efficiency ~ average_met * (age_category + education + previous_children +
+                                        epds_category + bmi_bl2 + gt_weight_gain +
+                                        pp_weight_lost + delivery_method) +
+    ns(week, df = 3),
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = postpartum, method = "REML", na.action = na.omit
 )
+summary(m_post_eff_int)
 
-# Postpartum — score
-plot_all_sig_interactions(
-  m_post_score_int,
-  model_tag = "post_score",
-  focal    = "average_met_mean3_z",
-  outdir   = out_dir,
-  alpha    = 0.05
+# Plot
+coef_post_eff_int <- plot_coef_forest_pretty(
+  m_post_eff_int,
+  title = "Postpartum: efficiency — kertoimet (interaktiot mukana)"
 )
+print(coef_post_eff_int)
+ggsave(file.path(out_dir, "coef_post_eff_int.png"),
+       coef_post_eff_int, width = 10, height = 6, dpi = 300)
 
 
 
 
-# EPDS-kategorian interaktio kaikissa neljässä mallissa
+
+
+# EPDS-kategorian interaktio
 plot_interaction_facets(by = "epds_category",
-                        focal = "average_met_mean3_z",
-                        xlab = "Aktiivisuus (z)")
+                        focal = c("average_met", "average_met_lag1"),
+                        xlab  = "Aktiivisuus (z)")
 
-# Education-kategorian interaktio kaikissa neljässä mallissa
-plot_interaction_facets(by = "education",
-                        focal = "average_met_mean3_z",
-                        xlab = "Aktiivisuus (z)")
-
-# Previous-kategorian interaktio kaikissa neljässä mallissa
+# Previous-children interaktio
 plot_interaction_facets(by = "previous_children",
-                        focal = "average_met_mean3_z",
-                        xlab = "Aktiivisuus (z)")
+                        focal = c("average_met", "average_met_lag1"),
+                        xlab  = "Aktiivisuus (z)")
+
+# Lähtö-BMI
+plot_interaction_facets(by = "bmi_bl2",
+                        focal = c("average_met", "average_met_lag1"),
+                        xlab  = "Aktiivisuus (z)")
+
+# Raskaudenaikainen painonnousu
+plot_interaction_facets(by = "gt_weight_gain",
+                        focal = c("average_met", "average_met_lag1"),
+                        xlab  = "Aktiivisuus (z)")
+
+# Synnytyksen jälkeinen painonlasku
+plot_interaction_facets(by = "pp_weight_lost",
+                        focal = c("average_met", "average_met_lag1"),
+                        xlab  = "Aktiivisuus (z)")
 
 
 
