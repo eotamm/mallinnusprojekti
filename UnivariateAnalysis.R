@@ -12,8 +12,8 @@ dir.path <- file.path("./data") # symlink
 
 
 # Haetaan puhdisteut aineistot
-pregnancy  <- readRDS(file.path(dir.path, "pregnancy_2025-09-24.rds"))  %>% as.data.frame()
-postpartum <- readRDS(file.path(dir.path, "postpartum_2025-09-24.rds")) %>% as.data.frame()
+pregnancy  <- readRDS(file.path(dir.path, "pregnancy_2025-10-09.rds"))  %>% as.data.frame()
+postpartum <- readRDS(file.path(dir.path, "postpartum_2025-10-09.rds")) %>% as.data.frame()
 
 
 compute_trimester_post_means <- function(preg_df, post_df, vars,
@@ -131,7 +131,7 @@ nice_levels <- list(
   bmi_bl2 = c("1"="Overweight","2"="Obesity"),
   gt_weight_gain = c("within or less"="within or less","more than recommendation"="more than recommendation"),
   pp_weight_lost = c("0"="No","1"="Yes"),
-  previous_children = c("0"="nullipara","1"="primi- or multipara"),
+  previous_children = c("0"="primipara","1"="multipara"),
   delivery_method = c("1"="Vaginal","2"="Vacuum-assisted","3"="Caesarian section")
 )
 nice_var <- function(var) if (!is.null(nice_name[[var]])) nice_name[[var]] else gsub("_"," ", tools::toTitleCase(var))
