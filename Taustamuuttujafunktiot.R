@@ -1,7 +1,7 @@
 # Vaikutusten plottaus
 plot_coef_forest_pretty <- function(mod, title = "Fixed effects (95% CI)",
                                     alpha_ns = 0.35,
-                                    col_sig = "red",
+                                    col_sig = "#FF6F20",
                                     col_ns  = "black") {
   
   dd <- broom.mixed::tidy(mod, effects = "fixed", conf.int = TRUE) %>%
@@ -54,7 +54,62 @@ theme_golden_coast <- theme_minimal(base_size = 13) +
   trimws(unique(unlist(strsplit(tl, ":", fixed = TRUE))))
 }
 
-# Facetoitu interaktiokuva
+# Apurit
+.var_titles <- c(
+  age_category   = "Age category",
+  bmi_bl2        = "BMI at baseline",
+  delivery_method= "Delivery method",
+  epds_category  = "EPDS category",
+  education      = "Education",
+  gt_weight_gain = "Gestational weight gain",
+  pp_weight_lost = "Postpartum weight lost",
+  previous_children = "Parity"
+)
+
+# Palauttaa faktorin
+.recode_group_labels <- function(by, group) {
+  raw <- as.character(group)
+  lab <- switch(by,
+                age_category    = dplyr::recode(raw, "Under 30"="Under 30", "30 or more"="30 or more",
+                                                "0"="Under 30", "1"="30 or more"),
+                bmi_bl2         = dplyr::recode(raw, "1"="Overweight", "2"="Obesity",
+                                                "Overweight"="Overweight", "Obesity"="Obesity"),
+                delivery_method = dplyr::recode(raw, "1"="Vaginal", "2"="Vacuum-assisted", "3"="Caesarian section",
+                                                "Vaginal"="Vaginal", "Vacuum-assisted"="Vacuum-assisted",
+                                                "Caesarian section"="Caesarian section"),
+                epds_category   = dplyr::recode(raw, "No depression"="No depression", "Possible depr"="Possible depr",
+                                                "0"="No depression", "1"="Possible depr"),
+                education       = dplyr::recode(raw, "1"="secondary education or below", "2"="college or university",
+                                                "secondary education or below"="secondary education or below",
+                                                "college or university"="college or university"),
+                gt_weight_gain  = dplyr::recode(raw, "within or less"="within or less", "more than recommendat"="more than recommendation",
+                                                "0"="within or less", "1"="more than recommendation"),
+                pp_weight_lost  = dplyr::recode(raw, "0"="No", "1"="Yes", "No"="No", "Yes"="Yes"),
+                previous_children = dplyr::recode(raw, "0"="nullipara", "1"="multipara",
+                                                  "nullipara"="nullipara", "multipara"="multipara"),
+                raw
+  )
+
+  lev <- switch(by,
+                age_category        = c("Under 30","30 or more"),
+                bmi_bl2             = c("Overweight","Obesity"),
+                delivery_method     = c("Vaginal","Vacuum-assisted","Caesarian section"),
+                epds_category       = c("No depression","Possible depr"),
+                education           = c("secondary education or below","college or university"),
+                gt_weight_gain      = c("within or less","more than recommendation"),
+                pp_weight_lost      = c("No","Yes"),
+                previous_children   = c("nullipara","multipara"),
+                sort(unique(lab))
+  )
+  factor(lab, levels = lev)
+}
+
+.legend_title <- function(by) {
+  if (!is.null(.var_titles[[by]])) .var_titles[[by]] else by
+}
+
+
+# Interaktiokuvaaja facetoitu
 plot_interaction_facets <- function(
     by,
     focal  = c("average_met", "average_met_lag1", "average_met_mean3", "average_met_mean3_z"),
@@ -79,6 +134,7 @@ plot_interaction_facets <- function(
     focal_here <- intersect(focal, preds)[1]
     if (is.na(focal_here) || !(by %in% preds)) next
     eff <- ggeffects::ggpredict(mod, terms = c(paste0(focal_here, " [all]"), by))
+    eff$group <- .recode_group_labels(by, eff$group)  # <-- UUSI
     eff$model <- nm
     eff$Stage <- ifelse(grepl("^Pregnancy", nm), "Pregnancy", "Postpartum")
     eff$Outcome <- ifelse(grepl("duration", nm, TRUE), "Duration",
@@ -130,7 +186,9 @@ plot_interaction_facets <- function(
     ) +
     scale_color_manual(values = cols) +
     scale_fill_manual(values  = scales::alpha(cols, 0.25)) +
-    labs(x = xlab, y = "Mallin ennuste", color = by, fill = by, title = title) +
+    labs(x = xlab, y = "Mallin ennuste",
+         color = .legend_title(by), fill = .legend_title(by),  # <-- UUSI
+         title = title) +
     theme_golden_coast
   
   print(p)
@@ -139,6 +197,68 @@ plot_interaction_facets <- function(
                                       "_x_", by, ".png")
   dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
   ggsave(file.path(outdir, fname), p, width = 12, height = 10, dpi = 300)
+  invisible(p)
+}
+
+
+# Yksittäinen interaktiokuvaaja
+plot_interaction_single <- function(
+    model,
+    by,
+    focal      = c("average_met", "average_met_lag1", "average_met_mean3", "average_met_mean3_z"),
+    model_name = NULL,
+    xlab       = NULL,
+    title      = NULL,
+    outdir     = out_dir,
+    fname      = NULL,
+    width      = 8, height = 6, dpi = 300
+) {
+  stopifnot(requireNamespace("ggeffects"), requireNamespace("ggplot2"))
+  
+  preds <- .fixed_preds_lme(model)
+  focal_here <- intersect(focal, preds)[1]
+  if (is.na(focal_here)) stop("Yksikään 'focal' ei löytynyt mallista.")
+  if (!(by %in% preds)) stop("Muuttuja '", by, "' ei ole mallissa.")
+  
+  eff <- ggeffects::ggpredict(model, terms = c(paste0(focal_here, " [all]"), by))
+  eff$group <- .recode_group_labels(by, eff$group)  # <-- UUSI
+  eff$focal <- focal_here
+  eff$by    <- by
+  
+  xr <- range(eff$x, na.rm = TRUE)
+  yr <- range(eff$predicted, eff$conf.low, eff$conf.high, na.rm = TRUE)
+  if (is.null(xlab))  xlab  <- if (length(unique(eff$focal)) == 1) unique(eff$focal) else "Altiste"
+  if (is.null(title)) title <- paste0(ifelse(is.null(model_name), "", paste0(model_name, " — ")),
+                                      "Interaktio: ", focal_here, " × ", by)
+  
+  ngrp <- length(unique(eff$group))
+  cols <- rep_len(golden_coast_colors, ngrp)
+  
+  p <- ggplot2::ggplot(eff, ggplot2::aes(x = x, y = predicted, color = group)) +
+    ggplot2::geom_ribbon(ggplot2::aes(ymin = conf.low, ymax = conf.high, fill = group),
+                         alpha = 0.18, color = NA) +
+    ggplot2::geom_line(linewidth = 1) +
+    ggplot2::scale_x_continuous(limits = xr) +
+    ggplot2::scale_y_continuous(limits = yr) +
+    ggplot2::scale_color_manual(values = cols) +
+    ggplot2::scale_fill_manual(values  = scales::alpha(cols, 0.25)) +
+    ggplot2::labs(x = xlab, y = "Mallin ennuste",
+                  color = .legend_title(by), fill = .legend_title(by),  # <-- UUSI
+                  title = title) +
+    theme_golden_coast
+  
+  print(p)
+  
+  if (is.null(fname)) {
+    base <- paste0("interaction__",
+                   gsub("[^A-Za-z0-9]+","_", ifelse(is.null(model_name), "model", model_name)),
+                   "__", gsub("[^A-Za-z0-9]+","_", focal_here),
+                   "_x_", gsub("[^A-Za-z0-9]+","_", by), ".png")
+    fname <- base
+  }
+  dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+  ggplot2::ggsave(file.path(outdir, fname), p, width = width, height = height, dpi = dpi)
+  
   invisible(p)
 }
 
