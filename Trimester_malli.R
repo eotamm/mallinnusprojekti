@@ -19,6 +19,8 @@ library(marginaleffects) # visualisoinneille.
 library(effects)
 library(dotwhisker)
 library(broom.mixed)
+library(emmeans) # parittaisille vertailuille. 
+library(car) # ANOVA. 
 }
 
 #' Ei vielä sovittuja kysymyksiä, jotka voivat vaikuttaa lopulliseen malliin:
@@ -77,9 +79,9 @@ pregnancy$delivery_method <- factor(pregnancy$delivery_method,
 pregnancy$delivery_method <- relevel(pregnancy$delivery_method, ref = "Vaginal")
 # Miten muuttuu suhteessa raskauden alkuun. 
 pregnancy$trimester <- relevel(pregnancy$trimester, ref = "T1")
-# Voitaisiin harkita myös että miten muuttuu kohti loppua T3 refrenssiksi. Ns. Palautuminen. 
-# contrasts(pregnancy$trimester) <- contr.sum(3) Ei refrenssiä vaan. Onko erillainen keskiarovon nähden. 
-# Hierarkinen vaihtoehto: contrasts(pregnancy$trimester) <- contr.helmert(3)
+# Päätös on käyttää T1 refrenssinä ja katsoa kaikki vertailut eri trimesterien välillä emmeansin avulla. 
+
+# MALLIT------------------------------------------------------------------------
 
 # Duration 
 lme_duration<- lme(
@@ -112,236 +114,57 @@ lme_efficiency <- lme(
   method="REML", 
   na.action=na.omit
 )
-
-# summaries 
+#-------------------------------------------------------------------------------
+# summaries ja interaktio testi
 summary(lme_duration)
+Anova(lme_duration, type = 3)
 summary(lme_score)
+Anova(lme_score, type = 3)
 summary(lme_efficiency)
+Anova(lme_efficiency, type = 3)
 
-# Plots
-trimester_cols <- c(
-  T1 = golden_coast_colors[1],   
-  T2 = golden_coast_colors[2],   
-  T3 = golden_coast_colors[3]    
-)
+# Emmeans analyysi antaa kaikkien trimesterien vertailut. Käytetty korjaus on fdr. 
+em_duration <- emtrends(lme_duration, 
+                        pairwise ~ trimester, 
+                        var = "average_met_z",
+                        adjust = "fdr")
+em_score <- emtrends(lme_score, 
+                     pairwise ~ trimester, 
+                     var = "average_met_lag1_z",
+                     adjust = "fdr")
+em_efficiency <- emtrends(lme_efficiency, 
+                          pairwise ~ trimester, 
+                          var = "average_met_z",
+                          adjust = "fdr")
 
-# Duration
-xr <- seq(
-  from = min(pregnancy$average_met_z, na.rm = TRUE),
-  to   = max(pregnancy$average_met_z, na.rm = TRUE),
-  length.out = 100
-)
+print(summary(em_duration$emtrends))
+print(summary(em_duration$contrasts))
 
-p_duration <- plot_predictions(
-  lme_duration,
-  condition = list(
-    average_met_z = xr,
-    trimester     = levels(pregnancy$trimester)
-  )
-) +
-  scale_color_manual(values = trimester_cols) +
-  scale_fill_manual(values = trimester_cols) +  
-  labs(
-    x = "average_met (z-skaalattu)",
-    y = "Duration (h)",
-    title = "Interaktio: avgMET × trimester",
-    #subtitle = "Marginalisoitu yli kovariaattien (ml. week) jakauman"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    legend.title = element_blank()
-  )
+print(summary(em_score$emtrends))
+print(summary(em_score$contrasts))
 
-# Estimaattien suuruudet dotwhisker plot
-coefs <- tidy(lme_duration, effects = "fixed") %>% 
-  filter(!grepl("ns\\(week", term)) %>% 
-  filter(!grepl("(Intercept)", term))
+print(summary(em_efficiency$emtrends))
+print(summary(em_efficiency$contrasts))
 
-coefs <- coefs %>% 
-  mutate(term = case_when(
-    #term == "(Intercept)" ~ "Intercept",
-    term == "average_met_z" ~ "Average MET",
-    term == "trimesterT2" ~ "Trimester: 2 vs 1",
-    term == "trimesterT3" ~ "Trimester: 3 vs 1",
-    term == "average_met_z:trimesterT2" ~ "AV_MET × Trimester 2",
-    term == "average_met_z:trimesterT3" ~ "AV_MET × Trimester 3",
-    TRUE ~ term
-  ),
-  term = fct_rev(factor(term)),
-  sig  = if_else(p.value < 0.05, "sig", "ns"),
-  model = sig)
+# Taulukko: 
+duration_contrasts <- as.data.frame(em_duration$contrasts) %>%
+  mutate(outcome = "Duration", .before = 1)
 
-coefs <- coefs %>% 
-  mutate(term = fct_rev(factor(term)))
+score_contrasts <- as.data.frame(em_score$contrasts) %>%
+  mutate(outcome = "Score", .before = 1)
 
-dw_duration <- dwplot(coefs) +
-  scale_color_manual(values = c(
-    "ns"  = "#1f77b4",  
-    "sig" = "#FF6F20"  
-  )) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  labs(
-    x = "Duration",
-    y = ""
-  ) +
-  theme_bw() +
-  theme(legend.position = "none")
+efficiency_contrasts <- as.data.frame(em_efficiency$contrasts) %>%
+  mutate(outcome = "Efficiency", .before = 1)
 
-#Score
-xr <- seq(
-  from = min(pregnancy$average_met_lag1_z, na.rm = TRUE),
-  to   = max(pregnancy$average_met_lag1_z, na.rm = TRUE),
-  length.out = 100
-)
-
-p_score <- plot_predictions(
-  lme_score,
-  condition = list(
-    average_met_lag1_z = xr,
-    trimester     = levels(pregnancy$trimester)
-  )
-) +
-  scale_color_manual(values = trimester_cols) +
-  scale_fill_manual(values = trimester_cols) +  
-  labs(
-    x = "average_met_lag1_z (z-skaalattu)",
-    y = "Score",
-    title = "Interaktio: avgMET × trimester",
-    #subtitle = "Marginalisoitu yli kovariaattien (ml. week) jakauman"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    legend.title = element_blank()
-  )
-
-# Estimaattien suuruudet dotwhisker plot
-coefs <- tidy(lme_score, effects = "fixed") %>% 
-  filter(!grepl("ns\\(week", term)) %>% 
-  filter(!grepl("(Intercept)", term))
-
-coefs <- coefs %>% 
-  mutate(term = case_when(
-    #term == "(Intercept)" ~ "Intercept",
-    term == "average_met_lag1_z" ~ "MET_lag",
-    term == "trimesterT2" ~ "Trimester: 2 vs 1",
-    term == "trimesterT3" ~ "Trimester: 3 vs 1",
-    term == "average_met_z:trimesterT2" ~ "MET_lag × Trimester 2",
-    term == "average_met_z:trimesterT3" ~ "MET_lag × Trimester 3",
-    TRUE ~ term
-  ),
-  term = fct_rev(factor(term)),
-  sig  = if_else(p.value < 0.05, "sig", "ns"),
-  model = sig)
-
-coefs <- coefs %>%
-  mutate(term = fct_rev(factor(term)))
-
-dw_score <- dwplot(coefs) +
-  scale_color_manual(values = c(
-    "ns"  = "#1f77b4",  
-    "sig" = "#FF6F20"  
-  )) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  labs(
-    x = "Score",
-    y = ""
-  ) +
-  theme_bw() +
-  theme(legend.position = "none")
-
-#Efficiency
-xr <- seq(
-  from = min(pregnancy$average_met_z, na.rm = TRUE),
-  to   = max(pregnancy$average_met_z, na.rm = TRUE),
-  length.out = 100
-)
-
-p_efficiency<- plot_predictions(
-  lme_efficiency,
-  condition = list(
-    average_met_z = xr,
-    trimester     = levels(pregnancy$trimester)
-  )
-) +
-  scale_color_manual(values = trimester_cols) +
-  scale_fill_manual(values = trimester_cols) +  
-  labs(
-    x = "average_met (z-skaalattu)",
-    y = "efficiency"#,
-    #subtitle = "Efficiency",
-    #subtitle = "Marginalisoitu yli kovariaattien (ml. week) jakauman"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    legend.title = element_blank()
-  )
-
-# Estimaattien suuruudet dotwhisker plot
-coefs <- tidy(lme_efficiency, effects = "fixed") %>% 
-  filter(!grepl("ns\\(week", term)) %>% 
-  filter(!grepl("(Intercept)", term))
-
-coefs <- coefs %>% 
-  mutate(term = case_when(
-    #term == "(Intercept)" ~ "Intercept",
-    term == "average_met_z" ~ "Average MET",
-    term == "trimesterT2" ~ "Trimester: 2 vs 1",
-    term == "trimesterT3" ~ "Trimester: 3 vs 1",
-    term == "average_met_z:trimesterT2" ~ "AV_MET × Trimester 2",
-    term == "average_met_z:trimesterT3" ~ "AV_MET × Trimester 3",
-    TRUE ~ term
-  ),
-  term = fct_rev(factor(term)),
-  sig  = if_else(p.value < 0.05, "sig", "ns"),
-  model = sig)
-
-coefs <- coefs %>%
-  mutate(term = fct_rev(factor(term)))
-
-dw_efficiency <- dwplot(coefs) +
-  scale_color_manual(values = c(
-    "ns"  = "#1f77b4",  
-    "sig" = "#FF6F20"  
-  )) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  labs(
-    x = "Efficiency",
-    y = ""
-  ) +
-  theme_bw() +
-  theme(legend.position = "none")
-
-#Kuvien teot
-int1 <- p_duration + theme_golden_coast+labs(title = NULL)
-int2 <- p_score + theme_golden_coast+labs(title = NULL)
-int3 <- p_efficiency + theme_golden_coast+labs(title = NULL)
-
-library(patchwork)
-(int1 + int2 + int3) +
-  plot_layout(guides = "collect") &
-  theme(
-    legend.position = "bottom" 
-  ) &
-  plot_annotation(
-    title = "Interaktiokuvat",
-    theme = theme(
-      plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
-    )
-  )
-
-dw1 <- dw_duration + theme_golden_coast +labs(title = NULL)
-dw2 <- dw_score + theme_golden_coast +labs(title = NULL)
-dw3 <- dw_efficiency + theme_golden_coast+labs(title = NULL)
-
-(dw1+dw2+dw3) +
-  plot_annotation(
-    title = "Estimaatit",
-    theme = theme(
-      plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
-    )
-  )&
-  theme(
-    legend.position = "none"
-  )
-
-
+all_contrasts <- bind_rows(duration_contrasts, score_contrasts, efficiency_contrasts) %>%
+  mutate(
+    sig = case_when(
+      p.value < 0.001 ~ "***",
+      p.value < 0.01  ~ "**",
+      p.value < 0.05  ~ "*",
+      TRUE ~ "ns"
+    ),
+    contrast = factor(contrast, levels = c("T1 - T2", "T1 - T3", "T2 - T3")),
+    outcome = factor(outcome, levels = c("Duration", "Score", "Efficiency"))
+  ) %>%
+  select(outcome, contrast, estimate, SE, df ,t.ratio, p.value, sig)# lower.CL, upper.CL,
