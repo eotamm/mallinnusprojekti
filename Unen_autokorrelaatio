@@ -1,0 +1,170 @@
+library(tidyverse)
+library(haven)
+library(janitor)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(lme4)
+library(ggplot2)
+library(sjPlot)
+library(tibble)
+
+dir.path <- "C:/Users/Ari/Seafile/Projektikurssi"
+stopifnot(dir.exists(dir.path))
+
+
+pregnancy  <- readRDS(file.path(dir.path, "pregnancy_2025-10-09.rds"))  %>% as.data.frame()
+postpartum <- readRDS(file.path(dir.path, "postpartum_2025-10-09.rds")) %>% as.data.frame()
+
+
+# Päivätason data 
+postpartum_daily <- postpartum %>%
+  mutate(date = as.Date(summary_date)) %>%
+  group_by(id, date) %>%
+  summarise(
+    score = mean(score, na.rm = TRUE),
+    duration = mean(duration, na.rm = TRUE),
+    steps = mean(steps, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(id, date)
+
+# Laskee edellisten 7 päivän keskiarvot ja päivittäiset viiveet
+postpartum_daily <- postpartum_daily %>%
+  group_by(id) %>%
+  mutate(
+    # 7 päivän keskiarvot
+    score_7d = lag(rollapply(score, width = 7, FUN = mean, align = "right", fill = NA, na.rm = TRUE)),
+    duration_7d = lag(rollapply(duration, width = 7, FUN = mean, align = "right", fill = NA, na.rm = TRUE)),
+    steps_7d = lag(rollapply(steps, width = 7, FUN = mean, align = "right", fill = NA, na.rm = TRUE)),
+    # Päivittäiset viiveet
+    lag1_score = lag(score, 1),
+    lag2_score = lag(score, 2),
+    lag1_duration = lag(duration, 1),
+    lag2_duration = lag(duration, 2)
+  ) %>%
+  ungroup()
+
+# Poistaa rivit joissa NA-arvoja
+postpartum_daily <- postpartum_daily %>%
+  filter(
+    !is.na(score),
+    !is.na(lag1_score),
+    !is.na(lag2_score),
+    !is.na(lag1_duration),
+    !is.na(lag2_duration),
+    !is.na(score_7d),
+    !is.na(duration_7d),
+    !is.na(steps_7d)
+  )
+
+# Muuttujien skaalaus
+postpartum_daily <- postpartum_daily %>%
+  mutate(
+    score_s = scale(score),
+    lag1_score_s = scale(lag1_score),
+    lag2_score_s = scale(lag2_score),
+    lag1_duration_s = scale(lag1_duration),
+    lag2_duration_s = scale(lag2_duration),
+    score_7d_s = scale(score_7d),
+    duration_7d_s = scale(duration_7d),
+    steps_7d_s = scale(steps_7d)
+  )
+
+
+# Mallivalintaa
+
+library(lmerTest)
+fit_1 <- lmer(
+  score_s ~ lag1_score_s + lag2_score_s + score_7d_s + lag1_duration_s + lag2_duration_s + (1 | id),
+  data = postpartum_daily,
+  na.action = na.exclude
+)
+
+fit_2 <- lmer(
+  score_s ~ lag1_score_s  + lag2_score_s + score_7d_s + lag1_duration_s + (1 | id),
+  data = postpartum_daily,
+  na.action = na.exclude
+)
+
+fit_3 <- lmer(
+  score_s ~ lag1_score_s  + lag2_score_s  + lag1_duration_s + lag2_duration_s + (1 | id),
+  data = postpartum_daily,
+  na.action = na.exclude
+)
+
+fit_4 <- lmer(
+  score_s ~ lag1_score_s + lag1_duration_s + lag2_duration_s + (1 | id),
+  data = postpartum_daily,
+  na.action = na.exclude
+)
+
+fit_5 <- lmer(
+  score_s ~ lag1_score_s  + lag1_duration_s + (1 | id),
+  data = postpartum_daily,
+  na.action = na.exclude
+)
+
+fit_6 <- lmer(
+  score_s ~ lag2_score_s  + lag2_duration_s + (1 | id),
+  data = postpartum_daily,
+  na.action = na.exclude
+)
+
+
+anova(fit_1, fit_2, fit_3, fit_4, fit_5, fit_6)
+
+
+# Residuaali
+resid_fit <- resid(fit_2, type = "pearson")
+par(mfrow = c(2,1))
+hist(resid_fit)
+plot(fitted(fit_2), resid_fit)
+
+summary(resid_fit)
+sd(resid_fit)
+
+summary(fit_2)
+
+# Visualisointi
+
+library(patchwork)
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+
+# Muutetaan data pitkään muotoon, jotta eri lagit voidaan piirtää samaan kuvaan
+plot_data <- postpartum_daily %>%
+  select(score_s, lag1_score_s, lag2_score_s, score_7d_s) %>%
+  pivot_longer(
+    cols = c(lag1_score_s, lag2_score_s, score_7d_s),
+    names_to = "variable",
+    values_to = "predictor"
+  )
+
+# Piirretään yhteinen kuvaaja
+ggplot(plot_data, aes(x = predictor, y = score_s, color = variable)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1.2) +
+  scale_color_manual(
+    values = c(
+      "lag1_score_s" = "#20B2AA",
+      "lag2_score_s" = "#FF6F20",
+      "score_7d_s"   = "#1E90FF"
+    ),
+    labels = c(
+      "lag1_score_s" = "Edellinen päi (Lag-arvot)",
+      "lag2_score_s" = "Kaksi edellistä päivää (Lag-arvot)",
+      "score_7d_s"   = "7 päivän liukuva keskiarvo"
+    )
+  ) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Kokonaisunen laadun ajalliset yhteydet (score)",
+    x = "Skaalattu edellisten päivien arvo",
+    y = "Skaalattu tämän päivän arvo",
+    color = "Muuttuja"
+  ) +
+  theme(legend.position = "bottom")
+
+
