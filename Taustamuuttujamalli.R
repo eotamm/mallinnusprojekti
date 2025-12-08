@@ -113,7 +113,7 @@ summary(m_preg_dur_int)
 # Plot
 coef_preg_dur_int <- plot_coef_forest_pretty(
   m_preg_dur_int,
-  title = "Pregnancy: duration — kertoimet (interaktiot mukana)"
+  title = "Pregnancy: duration — kertoimet"
 )
 print(coef_preg_dur_int)
 ggsave(file.path(out_dir, "coef_preg_dur_int.png"),
@@ -157,7 +157,7 @@ summary(m_preg_score_int)
 # Plot
 coef_preg_score_int <- plot_coef_forest_pretty(
   m_preg_score_int,
-  title = "Pregnancy: score — kertoimet (interaktiot mukana)"
+  title = "Pregnancy: score — kertoimet"
 )
 print(coef_preg_score_int)
 ggsave(file.path(out_dir, "coef_preg_score_int.png"),
@@ -200,7 +200,7 @@ summary(m_preg_eff_int)
 # Plot
 coef_preg_eff_int <- plot_coef_forest_pretty(
   m_preg_eff_int,
-  title = "Pregnancy: efficiency — kertoimet (interaktiot mukana)"
+  title = "Pregnancy: efficiency — kertoimet"
 )
 print(coef_preg_eff_int)
 ggsave(file.path(out_dir, "coef_preg_eff_int.png"),
@@ -249,7 +249,7 @@ summary(m_post_dur_int)
 # Plot
 coef_post_dur_int <- plot_coef_forest_pretty(
   m_post_dur_int,
-  title = "Postpartum: duration — kertoimet (interaktiot mukana)"
+  title = "Postpartum: duration — kertoimet"
 )
 print(coef_post_dur_int)
 ggsave(file.path(out_dir, "coef_post_dur_int.png"),
@@ -296,7 +296,7 @@ summary(m_post_score_int)
 # Plot
 coef_post_score_int <- plot_coef_forest_pretty(
   m_post_score_int,
-  title = "Postpartum: score — kertoimet (interaktiot mukana)"
+  title = "Postpartum: score — kertoimet"
 )
 print(coef_post_score_int)
 ggsave(file.path(out_dir, "coef_post_score_int.png"),
@@ -342,7 +342,7 @@ summary(m_post_eff_int)
 # Plot
 coef_post_eff_int <- plot_coef_forest_pretty(
   m_post_eff_int,
-  title = "Postpartum: efficiency — kertoimet (interaktiot mukana)"
+  title = "Postpartum: efficiency — kertoimet"
 )
 print(coef_post_eff_int)
 ggsave(file.path(out_dir, "coef_post_eff_int.png"),
@@ -440,3 +440,16 @@ plot_interaction_single(
 )
 
 
+
+
+# Tulosteet latex-taulukkoon
+tab_preg_dur_MI <- latex_main_inter_table(
+  m_preg_dur_int,
+  digits = 3,
+  sort_within = "none",   # vaihtoehdot: "none", "p", "abs_est"
+  caption = "Raskausaika: unen kesto — päävaikutukset ja interaktiot",
+  label   = "tab:preg_dur_main_inter"
+)
+
+# Tulosta
+cat(tab_preg_dur_MI)
