@@ -1,0 +1,282 @@
+library(tidyverse)
+library(lubridate)
+library(nlme)
+library(emmeans)
+library(splines)   
+library(ggplot2)
+
+dir.path <- "C:/Users/Ari/Seafile/Projektikurssi"
+pregnancy  <- readRDS(file.path(dir.path, "pregnancy_2025-10-09.rds")) %>% as.data.frame()
+postpartum <- readRDS(file.path(dir.path, "postpartum_2025-10-09.rds")) %>% as.data.frame()
+
+# Muutetaan duration tunneiksi
+pregnancy$duration  <- pregnancy$duration / 3600
+postpartum$duration <- postpartum$duration / 3600
+
+# Viitekategoriat ja faktorimuunnokset
+set_ref_levels_safe <- function(df) {
+  if ("age_category"   %in% names(df)) df$age_category   <- relevel(factor(df$age_category),   ref = "Under 30")
+  if ("education"      %in% names(df)) df$education      <- relevel(factor(df$education),      ref = "1")
+  if ("previous_children" %in% names(df)) df$previous_children <- relevel(factor(df$previous_children), ref = "0")
+  if ("epds_category"  %in% names(df)) df$epds_category  <- relevel(factor(df$epds_category),  ref = "No depression")
+  if ("bmi_bl2"        %in% names(df)) df$bmi_bl2        <- relevel(factor(df$bmi_bl2),        ref = "1")
+  if ("gt_weight_gain" %in% names(df)) df$gt_weight_gain <- relevel(factor(df$gt_weight_gain), ref = "within or less")
+  if ("pp_weight_lost" %in% names(df)) df$pp_weight_lost <- relevel(factor(df$pp_weight_lost), ref = "1")
+  df
+}
+
+
+pregnancy  <- set_ref_levels_safe(pregnancy)
+postpartum <- set_ref_levels_safe(postpartum)
+
+# Postpartum: delivery_method faktori
+if ("delivery_method" %in% names(postpartum)) {
+  postpartum$delivery_method <- factor(postpartum$delivery_method,
+                                       levels = c(1, 2, 3),
+                                       labels = c("Vaginal", "Vacuum-assisted", "Caesarian section"))
+  postpartum$delivery_method <- relevel(postpartum$delivery_method, ref = "Vaginal")
+}
+
+################################################################################
+# Lag-muuttuja
+################################################################################
+pregnancy <- pregnancy %>%
+  arrange(id, summary_date) %>%
+  group_by(id) %>%
+  mutate(average_met_lag1 = lag(average_met, 1)) %>%
+  ungroup()
+
+postpartum <- postpartum %>%
+  arrange(id, summary_date) %>%
+  group_by(id) %>%
+  mutate(average_met_lag1 = lag(average_met, 1)) %>%
+  ungroup()
+
+
+################################################################################
+# Skaalaukset
+################################################################################
+pregnancy$average_met       <- scale(pregnancy$average_met)
+pregnancy$average_met_lag1  <- scale(pregnancy$average_met_lag1)
+postpartum$average_met      <- scale(postpartum$average_met)
+postpartum$average_met_lag1 <- scale(postpartum$average_met_lag1)
+
+###############################################################################
+# Tallennuskansio
+################################################################################
+out_dir <- file.path("figures", "taustamuuttujamallit")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+################################################################################
+# Visualisointi ilman muuttujia
+################################################################################
+library(nlme)
+library(ggeffects)
+library(ggplot2)
+
+# Mixed model (lme)
+
+# Duration
+m_duration <- lme(
+  fixed = duration ~ average_met * period,
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy,
+  method = "REML",
+  na.action = na.omit
+)
+
+# Predictions for Duration ~ MET * Period
+pred_dur <- ggpredict(m_duration, terms = c("average_met", "period"))
+
+# Plot
+ggplot(pred_dur, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.15, color = NA) +
+  scale_color_manual(values = c(
+    "#FF6F20",
+    "#1E90FF"
+  )) +
+  labs(x = "Average MET",
+       y = "Predicted Duration",
+       title = "Mixed model prediction (lme): Duration vs MET") +
+  theme_minimal()
+
+
+library(nlme)
+library(ggeffects)
+library(ggplot2)
+
+# Mixed model (lme) for Score with lag 1 predictor
+
+# Score
+m_score <- lme(
+  fixed = score ~ average_met_lag1 * period,
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = data_all,
+  method = "REML",
+  na.action = na.omit
+)
+
+# Predictions
+pred_score <- ggpredict(m_score, terms = c("average_met_lag1", "period"))
+
+# Plot
+ggplot(pred_score, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.15, color = NA) +
+  scale_color_manual(values = c(
+    "#FF6F20",
+    "#1E90FF"
+  )) +
+  labs(x = "Average MET (lag 1)", 
+       y = "Predicted Score",
+       title = "Mixed Model Prediction (lme): Score vs Average MET lag1") +
+  theme_minimal()
+
+
+# Mixed model (lme) for Efficiency
+
+# Effiency
+m_efficiency <- lme(
+  fixed = efficiency ~ average_met * period,
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy,
+  method = "REML",
+  na.action = na.omit
+)
+
+# Predictions
+pred_eff <- ggpredict(m_efficiency, terms = c("average_met", "period"))
+
+# Plot
+ggplot(pred_eff, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.15, color = NA) +
+  scale_color_manual(values = c(
+    "#FF6F20",
+    "#1E90FF"
+  )) +
+  labs(x = "Average MET",
+       y = "Predicted Efficiency",
+       title = "Mixed Model Prediction (lme): Efficiency vs Average MET") +
+  theme_minimal()
+
+################################################################################
+# Visualisointi muuttujilla
+################################################################################
+# Duration
+m_duration <- lme(
+  fixed = duration ~ average_met * period +
+    age_category + education + previous_children +
+    epds_category + bmi_bl2 + gt_weight_gain +
+    pp_weight_lost + delivery_method,
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy,
+  method = "REML",
+  na.action = na.omit
+)
+
+pred_dur <- ggpredict(m_duration, terms = c("average_met", "period"))
+
+# Plot
+ggplot() +
+  geom_point(data = pregnancy,
+             aes(x = average_met, y = duration),
+             color = "grey40", alpha = 0.4, size = 1) +
+  geom_line(data = pred_dur,
+            aes(x = x, y = predicted, color = group), size = 1.2) +
+  geom_ribbon(data = pred_dur,
+              aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.15, color = NA) +
+  scale_color_manual(values = c(
+    "#FF6F20",
+    "#1E90FF"
+  )) +
+  labs(x = "Average MET",
+       y = "Predicted Duration",
+       title = "Mixed Model Prediction (lme): Duration vs MET") +
+  theme_minimal()
+
+# Score
+m_score <- lme(
+  fixed = score ~ average_met_lag1 * period +
+    age_category + education + previous_children +
+    epds_category + bmi_bl2 + gt_weight_gain +
+    pp_weight_lost + delivery_method,
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = data_all,
+  method = "REML",
+  na.action = na.omit
+)
+
+pred_score <- ggpredict(m_score, terms = c("average_met_lag1", "period"))
+
+# Plot
+ggplot() +
+  geom_point(data = data_all,
+             aes(x = average_met_lag1, y = score),
+             color = "grey40", alpha = 0.4, size = 1) +
+  geom_line(data = pred_score,
+            aes(x = x, y = predicted, color = group), size = 1.2) +
+  geom_ribbon(data = pred_score,
+              aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.15, color = NA) +
+  scale_color_manual(values = c(
+    "#FF6F20",
+    "#1E90FF"
+  )) +
+  
+  labs(x = "Average MET (lag 1)",
+       y = "Predicted Score",
+       title = "Mixed Model Prediction (lme): Score vs MET lag1") +
+  theme_minimal()
+
+# Effiency
+m_efficiency <- lme(
+  fixed = efficiency ~ average_met * period +
+    age_category + education + previous_children +
+    epds_category + bmi_bl2 + gt_weight_gain +
+    pp_weight_lost + delivery_method,
+  random = ~ 1 | id,
+  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
+  data = pregnancy,
+  method = "REML",
+  na.action = na.omit
+)
+
+pred_eff <- ggpredict(m_efficiency, terms = c("average_met", "period"))
+
+# Plot
+ggplot() +
+  geom_point(data = pregnancy,
+             aes(x = average_met, y = efficiency),
+             color = "grey40", alpha = 0.4, size = 1) +
+  geom_line(data = pred_eff,
+            aes(x = x, y = predicted, color = group), size = 1.2) +
+  geom_ribbon(data = pred_eff,
+              aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.15, color = NA) +
+  scale_color_manual(values = c(
+    "#FF6F20",
+    "#1E90FF"
+  )) +
+  labs(x = "Average MET",
+       y = "Predicted Efficiency",
+       title = "Mixed Model Prediction (lme): Efficiency vs MET") +
+  theme_minimal()
+
+###############################################################################
+# Mallien tulosteet
+###############################################################################
+
+summary(m_duration)
+summary(m_score)
+summary(m_efficiency)

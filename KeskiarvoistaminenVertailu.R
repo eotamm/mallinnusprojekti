@@ -231,6 +231,93 @@ AIC(post_met_raw_s, post_met_dev_s, post_met_mean_dev_s)
 anova(post_met_dev_s, post_met_mean_dev_s)
 
 
+
+
+
+## EFFICIENCY, PRE: steps
+pre_steps_raw_e <- lmer(efficiency ~ steps_z + week + (1 | id), data = pregnancy, REML = FALSE)
+aic_pre_steps_raw_e <- AIC(pre_steps_raw_e)
+summary(pre_steps_raw_e)
+
+pre_steps_dev_e <- lmer(efficiency ~ steps_dev_z + week + (1 | id), data = pregnancy, REML = FALSE)
+aic_pre_steps_dev_e <- AIC(pre_steps_dev_e)
+summary(pre_steps_dev_e)
+
+pre_steps_mean_dev_e <- lmer(efficiency ~ steps_dev_z + steps_mean_id_z + week + (1 | id),
+                             data = pregnancy, REML = FALSE)
+aic_pre_steps_mean_dev_e <- AIC(pre_steps_mean_dev_e)
+summary(pre_steps_mean_dev_e)
+
+# AIC-vertailu
+AIC(pre_steps_raw_e, pre_steps_dev_e, pre_steps_mean_dev_e)
+
+# LRT
+anova(pre_steps_dev_e, pre_steps_mean_dev_e)
+
+
+## EFFICIENCY, PRE: average_met
+pre_met_raw_e <- lmer(efficiency ~ avgmet_z + week + (1 | id), data = pregnancy, REML = FALSE)
+aic_pre_met_raw_e <- AIC(pre_met_raw_e)
+summary(pre_met_raw_e)
+
+pre_met_dev_e <- lmer(efficiency ~ avgmet_dev_z + week + (1 | id), data = pregnancy, REML = FALSE)
+aic_pre_met_dev_e <- AIC(pre_met_dev_e)
+summary(pre_met_dev_e)
+
+pre_met_mean_dev_e <- lmer(efficiency ~ avgmet_dev_z + avgmet_mean_id_z + week + (1 | id),
+                           data = pregnancy, REML = FALSE)
+aic_pre_met_mean_dev_e <- AIC(pre_met_mean_dev_e)
+summary(pre_met_mean_dev_e)
+
+# AIC-vertailu
+AIC(pre_met_raw_e, pre_met_dev_e, pre_met_mean_dev_e)
+
+# LRT
+anova(pre_met_dev_e, pre_met_mean_dev_e)
+
+
+## EFFICIENCY, POST: steps
+post_steps_raw_e <- lmer(efficiency ~ steps_z + week + (1 | id), data = postpartum, REML = FALSE)
+aic_post_steps_raw_e <- AIC(post_steps_raw_e)
+summary(post_steps_raw_e)
+
+post_steps_dev_e <- lmer(efficiency ~ steps_dev_z + week + (1 | id), data = postpartum, REML = FALSE)
+aic_post_steps_dev_e <- AIC(post_steps_dev_e)
+summary(post_steps_dev_e)
+
+post_steps_mean_dev_e <- lmer(efficiency ~ steps_dev_z + steps_mean_id_z + week + (1 | id),
+                              data = postpartum, REML = FALSE)
+aic_post_steps_mean_dev_e <- AIC(post_steps_mean_dev_e)
+summary(post_steps_mean_dev_e)
+
+# AIC-vertailu
+AIC(post_steps_raw_e, post_steps_dev_e, post_steps_mean_dev_e)
+
+# LRT
+anova(post_steps_dev_e, post_steps_mean_dev_e)
+
+
+## EFFICIENCY, POST: average_met
+post_met_raw_e <- lmer(efficiency ~ avgmet_z + week + (1 | id), data = postpartum, REML = FALSE)
+aic_post_met_raw_e <- AIC(post_met_raw_e)
+summary(post_met_raw_e)
+
+post_met_dev_e <- lmer(efficiency ~ avgmet_dev_z + week + (1 | id), data = postpartum, REML = FALSE)
+aic_post_met_dev_e <- AIC(post_met_dev_e)
+summary(post_met_dev_e)
+
+post_met_mean_dev_e <- lmer(efficiency ~ avgmet_dev_z + avgmet_mean_id_z + week + (1 | id),
+                            data = postpartum, REML = FALSE)
+aic_post_met_mean_dev_e <- AIC(post_met_mean_dev_e)
+summary(post_met_mean_dev_e)
+
+# AIC-vertailu
+AIC(post_met_raw_e, post_met_dev_e, post_met_mean_dev_e)
+
+# LRT
+anova(post_met_dev_e, post_met_mean_dev_e)
+
+
 ## AIC-summary
 # duration
 aic_duration <- data.frame(
@@ -266,7 +353,25 @@ aic_score <- data.frame(
             aic_post_met_raw_s,   aic_post_met_dev_s,   aic_post_met_mean_dev_s)
 )
 
-aic_all <- bind_rows(aic_duration, aic_score) %>%
+# efficiency
+aic_efficiency <- data.frame(
+  Outcome = "efficiency",
+  Set   = c("PRE: steps","PRE: steps","PRE: steps",
+            "PRE: average_met","PRE: average_met","PRE: average_met",
+            "POST: steps","POST: steps","POST: steps",
+            "POST: average_met","POST: average_met","POST: average_met"),
+  Model = c("raw","dev","dev+mean",
+            "raw","dev","dev+mean",
+            "raw","dev","dev+mean",
+            "raw","dev","dev+mean"),
+  AIC   = c(aic_pre_steps_raw_e, aic_pre_steps_dev_e, aic_pre_steps_mean_dev_e,
+            aic_pre_met_raw_e,   aic_pre_met_dev_e,   aic_pre_met_mean_dev_e,
+            aic_post_steps_raw_e, aic_post_steps_dev_e, aic_post_steps_mean_dev_e,
+            aic_post_met_raw_e,   aic_post_met_dev_e,   aic_post_met_mean_dev_e)
+)
+
+# yhdistä aiemmat duration + score + uusi efficiency
+aic_all <- bind_rows(aic_duration, aic_score, aic_efficiency) %>%
   group_by(Outcome, Set) %>%
   mutate(DeltaAIC = AIC - min(AIC)) %>%
   arrange(Outcome, Set, AIC) %>%
@@ -280,7 +385,7 @@ datatable(
   aic_all_dt,
   rownames = FALSE,
   options = list(
-    pageLength = 24,
+    pageLength = 36,
     dom = "tip",
     order = list(list(0,'asc'), list(1,'asc'), list(3,'asc'))
   )

@@ -12,9 +12,9 @@ library(stringr)
 library(ggeffects)
 library(fs)
 library(nlme)
-library(splines)
 library(ggh4x)
 
+source("Taustamuuttujafunktiot.R")
 
 dir.path <- file.path("./data") # symlink 
 #dir.path <- file.path("../../Seafile/Projektikurssi") # Arille 
@@ -113,7 +113,7 @@ summary(m_preg_dur_int)
 # Plot
 coef_preg_dur_int <- plot_coef_forest_pretty(
   m_preg_dur_int,
-  title = "Pregnancy: duration — kertoimet (interaktiot mukana)"
+  title = "Pregnancy: duration — kertoimet"
 )
 print(coef_preg_dur_int)
 ggsave(file.path(out_dir, "coef_preg_dur_int.png"),
@@ -157,7 +157,7 @@ summary(m_preg_score_int)
 # Plot
 coef_preg_score_int <- plot_coef_forest_pretty(
   m_preg_score_int,
-  title = "Pregnancy: score — kertoimet (interaktiot mukana)"
+  title = "Pregnancy: score — kertoimet"
 )
 print(coef_preg_score_int)
 ggsave(file.path(out_dir, "coef_preg_score_int.png"),
@@ -200,7 +200,7 @@ summary(m_preg_eff_int)
 # Plot
 coef_preg_eff_int <- plot_coef_forest_pretty(
   m_preg_eff_int,
-  title = "Pregnancy: efficiency — kertoimet (interaktiot mukana)"
+  title = "Pregnancy: efficiency — kertoimet"
 )
 print(coef_preg_eff_int)
 ggsave(file.path(out_dir, "coef_preg_eff_int.png"),
@@ -249,7 +249,7 @@ summary(m_post_dur_int)
 # Plot
 coef_post_dur_int <- plot_coef_forest_pretty(
   m_post_dur_int,
-  title = "Postpartum: duration — kertoimet (interaktiot mukana)"
+  title = "Postpartum: duration — kertoimet"
 )
 print(coef_post_dur_int)
 ggsave(file.path(out_dir, "coef_post_dur_int.png"),
@@ -296,7 +296,7 @@ summary(m_post_score_int)
 # Plot
 coef_post_score_int <- plot_coef_forest_pretty(
   m_post_score_int,
-  title = "Postpartum: score — kertoimet (interaktiot mukana)"
+  title = "Postpartum: score — kertoimet"
 )
 print(coef_post_score_int)
 ggsave(file.path(out_dir, "coef_post_score_int.png"),
@@ -342,7 +342,7 @@ summary(m_post_eff_int)
 # Plot
 coef_post_eff_int <- plot_coef_forest_pretty(
   m_post_eff_int,
-  title = "Postpartum: efficiency — kertoimet (interaktiot mukana)"
+  title = "Postpartum: efficiency — kertoimet"
 )
 print(coef_post_eff_int)
 ggsave(file.path(out_dir, "coef_post_eff_int.png"),
@@ -379,4 +379,77 @@ plot_interaction_facets(by = "pp_weight_lost",
                         xlab  = "Aktiivisuus (z)")
 
 
+# PREGNANCY, duration: average_met x epds_category (p = 0.0235)
+plot_interaction_single(
+  model      = m_preg_dur_int,
+  by         = "epds_category",
+  focal      = c("average_met"),
+  model_name = "Pregnancy: duration",
+  xlab       = "Aktiivisuus (z)",
+  fname      = "interaction__Pregnancy_duration__average_met_x_epds_category.png"
+)
 
+# PREGNANCY, efficiency: average_met x bmi_bl2 (p = 0.0069)
+plot_interaction_single(
+  model      = m_preg_eff_int,
+  by         = "bmi_bl2",
+  focal      = c("average_met"),
+  model_name = "Pregnancy: efficiency",
+  xlab       = "Aktiivisuus (z)",
+  fname      = "interaction__Pregnancy_efficiency__average_met_x_bmi_bl2.png"
+)
+
+# PREGNANCY, score: average_met_lag1 x gt_weight_gain (p = 0.0003)
+plot_interaction_single(
+  model      = m_preg_score_int,
+  by         = "gt_weight_gain",
+  focal      = c("average_met_lag1"),
+  model_name = "Pregnancy: score",
+  xlab       = "Aktiivisuus (lag1, z)",
+  fname      = "interaction__Pregnancy_score__average_met_lag1_x_gt_weight_gain.png"
+)
+
+# POSTPARTUM, duration: average_met x previous_children (p = 0.0328)
+plot_interaction_single(
+  model      = m_post_dur_int,
+  by         = "previous_children",
+  focal      = c("average_met"),
+  model_name = "Postpartum: duration",
+  xlab       = "Aktiivisuus (z)",
+  fname      = "interaction__Postpartum_duration__average_met_x_previous_children.png"
+)
+
+# POSTPARTUM, duration: average_met x pp_weight_lost (p = 0.0101)
+plot_interaction_single(
+  model      = m_post_dur_int,
+  by         = "pp_weight_lost",
+  focal      = c("average_met"),
+  model_name = "Postpartum: duration",
+  xlab       = "Aktiivisuus (z)",
+  fname      = "interaction__Postpartum_duration__average_met_x_pp_weight_lost.png"
+)
+
+# POSTPARTUM, duration: average_met x delivery_method
+plot_interaction_single(
+  model      = m_post_dur_int,
+  by         = "delivery_method",
+  focal      = c("average_met"),
+  model_name = "Postpartum: duration",
+  xlab       = "Aktiivisuus (z)",
+  fname      = "interaction__Postpartum_duration__average_met_x_delivery_method.png"
+)
+
+
+
+
+# Tulosteet latex-taulukkoon
+tab_preg_dur_MI <- latex_main_inter_table(
+  m_preg_dur_int,
+  digits = 3,
+  sort_within = "none",   # vaihtoehdot: "none", "p", "abs_est"
+  caption = "Raskausaika: unen kesto — päävaikutukset ja interaktiot",
+  label   = "tab:preg_dur_main_inter"
+)
+
+# Tulosta
+cat(tab_preg_dur_MI)
