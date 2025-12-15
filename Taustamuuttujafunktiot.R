@@ -329,7 +329,7 @@ plot_interaction_single <- function(
     title      = NULL,
     outdir     = out_dir,
     fname      = NULL,
-    width      = 8, height = 6, dpi = 300
+    width      = 10, height = 6, dpi = 300
 ) {
   stopifnot(requireNamespace("ggeffects"), requireNamespace("ggplot2"))
   
@@ -597,7 +597,7 @@ plot_sleep_box_panel_all_bg <- function(df,
                                         non_wear_max   = Inf) {
   outcome <- match.arg(outcome)
   
-  # Taustamuuttujat, joille meillä on suomenkieliset nimet
+  # Taustamuuttujat
   background_vars_all <- c(
     "age_category",
     "education",
@@ -619,7 +619,6 @@ plot_sleep_box_panel_all_bg <- function(df,
     ) %>%
     { if ("non_wear" %in% names(.)) dplyr::filter(., is.na(non_wear) | non_wear <= non_wear_max) else . }
   
-  # Vaste + label
   if (outcome == "duration") {
     y_var   <- "duration_h"
     y_label <- "Unen kesto (h)"
@@ -634,8 +633,7 @@ plot_sleep_box_panel_all_bg <- function(df,
   if (!y_var %in% names(df2)) {
     stop(sprintf("Vaste '%s' puuttuu datasta.", y_var))
   }
-  
-  # Pitkä formaatti + suomenkieliset ryhmänimet
+
   df_long <- df2 %>%
     dplyr::select(dplyr::all_of(c(y_var, background_vars))) %>%
     tidyr::pivot_longer(
@@ -653,7 +651,6 @@ plot_sleep_box_panel_all_bg <- function(df,
     ) %>%
     dplyr::ungroup()
   
-  # Facettien otsikot samasta sanastosta (LEGEND_TITLES)
   facet_labeller <- ggplot2::as_labeller(
     LEGEND_TITLES,
     default = ggplot2::label_value

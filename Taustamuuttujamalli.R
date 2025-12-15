@@ -10,9 +10,10 @@ library(splines)
 library(broom.mixed)
 library(stringr)
 library(ggeffects)
-library(fs)
+library(fs)x
 library(nlme)
 library(ggh4x)
+library(purrr)
 
 source("Taustamuuttujafunktiot.R")
 
@@ -399,6 +400,16 @@ plot_interaction_single(
   fname      = "interaction__Pregnancy_efficiency__average_met_x_bmi_bl2.png"
 )
 
+# PREGNANCY, efficiency: average_met x EPDS (p = 0.079)
+plot_interaction_single(
+  model      = m_preg_eff_int,
+  by         = "epds_category",
+  focal      = c("average_met"),
+  model_name = "Pregnancy: efficiency",
+  xlab       = "Aktiivisuus (z)",
+  fname      = "interaction__Pregnancy_efficiency__average_met_x_epds_category.png"
+)
+
 # PREGNANCY, score: average_met_lag1 x gt_weight_gain (p = 0.0003)
 plot_interaction_single(
   model      = m_preg_score_int,
@@ -407,6 +418,16 @@ plot_interaction_single(
   model_name = "Pregnancy: score",
   xlab       = "Aktiivisuus (lag1, z)",
   fname      = "interaction__Pregnancy_score__average_met_lag1_x_gt_weight_gain.png"
+)
+
+# PREGNANCY, score: average_met_lag1 x age (p = 0.058)
+plot_interaction_single(
+  model      = m_preg_score_int,
+  by         = "age_category",
+  focal      = c("average_met_lag1"),
+  model_name = "Pregnancy: score",
+  xlab       = "Aktiivisuus (lag1, z)",
+  fname      = "interaction__Pregnancy_score__average_met_lag1_x_age_category.png"
 )
 
 # POSTPARTUM, duration: average_met x previous_children (p = 0.0328)
@@ -439,17 +460,27 @@ plot_interaction_single(
   fname      = "interaction__Postpartum_duration__average_met_x_delivery_method.png"
 )
 
+# POSTPARTUM, efficiency: average_met x pp_weight_lost (p = 0.067)
+plot_interaction_single(
+  model      = m_post_eff_int,
+  by         = "pp_weight_lost",
+  focal      = c("average_met"),
+  model_name = "Postpartum: efficiency",
+  xlab       = "Aktiivisuus (z)",
+  fname      = "interaction__Postpartum_efficiency__average_met_x_pp_weight_lost.png"
+)
 
 
 
 # Tulosteet latex-taulukkoon
-tab_preg_dur_MI <- latex_main_inter_table(
-  m_preg_dur_int,
+tab_post_eff_MI <- latex_main_inter_table(
+  m_post_eff_int,
   digits = 3,
   sort_within = "none",   # vaihtoehdot: "none", "p", "abs_est"
-  caption = "Raskausaika: unen kesto — päävaikutukset ja interaktiot",
-  label   = "tab:preg_dur_main_inter"
+  caption = "Synnytyksen jälkeen: unen tehokkuus — päävaikutukset ja interaktiot",
+  label   = "tab:post_eff_main_inter"
 )
 
 # Tulosta
-cat(tab_preg_dur_MI)
+cat(tab_post_eff_MI)
+
