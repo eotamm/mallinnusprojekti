@@ -191,3 +191,4 @@ summary(model)
 model <- lmer(score ~ average_met + week + age_category + education + previous_children + 
                 epds_category + bmi_bl2 + (1 | id), data = postpartum)
 summary(model)
+
