@@ -1,6 +1,8 @@
-# Onko aikaa järkevää mallintaa epälineaarisesti splinien avulla. Ajan epälineaarinen mallintaminen voi olla hyödyllistä, 
-# sillä fyysinen aktiivisuus tai hyvin vointi saattaa muuttua eritavalla raskauden erivaiheissa. 
+#' Onko aikaa järkevää mallintaa epälineaarisesti splinien avulla. Ajan epälineaarinen mallintaminen voi olla hyödyllistä, 
+#' sillä fyysinen aktiivisuus tai hyvin vointi saattaa muuttua eritavalla raskauden erivaiheissa. 
 
+#Aloitus
+{
 # Kirjastot
 library(nlme)
 library(lme4)
@@ -10,6 +12,19 @@ library(kableExtra)
 library(knitr)
 library(effects)
 library(dplyr)
+
+# Theme 
+golden_coast_colors <- c("#1E90FF", "#FF6F20", "#FFBBC1", "#2082AA", "#FFD700") 
+theme_golden_coast <- theme_minimal(base_size = 13) +
+  theme(
+    text = element_text(color = golden_coast_colors[5]),
+    plot.title = element_text(face = "bold", color = golden_coast_colors[1]), #golden_coast_colors[1]
+    axis.title = element_text(color = golden_coast_colors[5]),
+    axis.text  = element_text(color = golden_coast_colors[5]),
+    panel.grid.major = element_line(color = scales::alpha(golden_coast_colors[5], 0.08)),
+    panel.grid.minor = element_line(color = scales::alpha(golden_coast_colors[5], 0.04)),
+    legend.title = element_blank()
+  )
 dir.path <- file.path("./data") # symlink. 
 pregnancy  <- readRDS(file.path(dir.path, "pregnancy_2025-10-09.rds"))  %>% as.data.frame()
 postpartum <- readRDS(file.path(dir.path, "postpartum_2025-10-09.rds")) %>% as.data.frame()
@@ -73,11 +88,11 @@ tarkista_jaannokset <- function(malli, malli_nimi = NULL) {
   plot(fit, res, pch = 16, cex = 0.7,
        xlab = "Sovite (fitted)", ylab = "Jäännös",
        main = "Sovitteet vs. jäännökset")
-  abline(h = 0, col = "red", lty = 2)
+  abline(h = 0, col = "#FFBBC1", lty = 2)
   
   # QQ-kuva
   qqnorm(res, main = "QQ-kuvaaja jäännöksille")
-  qqline(res, col = "red", lwd = 2)
+  qqline(res, col = "#FFBBC1", lwd = 2)
   
   # Otsikko
   mtext(paste("Jäännöstarkastelu:", malli_nimi),
@@ -99,12 +114,18 @@ postpartum <- postpartum %>%
 
 pregnancy$duration = pregnancy$duration/(60*60)
 postpartum$duration = postpartum$duration/(60*60)
+} 
 
+
+# with steps_z
+{
+  #Pregnancy aineistolla 
+{
 #______Lets use the same data for every var. 
 dat <- pregnancy
 dat <- dat %>%
   filter(!is.na(duration), !is.na(score), !is.na(efficiency),!is.na(steps_z), !is.na(id))
-
+{
 #______
 # Duration
 #______
@@ -127,8 +148,8 @@ m_df4 <- lme(duration ~ steps_z + ns(week, df = 4), random = ~1 | id, data = dat
 m_df5 <- lme(duration ~ steps_z + ns(week, df = 5), random = ~1 | id, data = dat, method = "ML")
 m_df6 <- lme(duration ~ steps_z + ns(week, df = 6), random = ~1 | id, data = dat, method = "ML")
 
-tarkista_jaannokset(m2, "df = 3 spline malli")
-tarkista_jaannokset(m_df6, "df = 6 spline malli")
+# tarkista_jaannokset(m2, "df = 3 spline malli")
+# tarkista_jaannokset(m_df6, "df = 6 spline malli")
 
 taulukko <- taulukoi_mallit_latex(
   m0, m1, m2, m_df4, m_df5, m_df6,
@@ -155,27 +176,29 @@ eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
 eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
                              xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
                                                        max(dat$week, na.rm=TRUE), length.out=200))))
-
+png("kuvak1/kuva_sp1.png", width=1200, height=800, res=150)
 # Piirrä df=3 ensin
-plot(eff3$week, eff3$fit, type="l", lwd=2, col="blue",
-     xlab="Raskausviikko", ylab="Ennustettu unen kesto (h)",
-     main="Raskausviikon vaikutus unen kestoon",
+plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+     xlab="viikko", ylab="Ennustettu unen kesto (h)",
+     main="Ajan vaikutus unen kestoon",
      ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
 
 # Lisää df=6 päälle
-lines(eff6$week, eff6$fit, lwd=2, col="red")
+lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
 
 # (valinnainen) luottamusvälit
 polygon(c(eff3$week, rev(eff3$week)),
         c(eff3$lower, rev(eff3$upper)),
-        border=NA, col=adjustcolor("blue", 0.15))
+        border=NA, col=adjustcolor("#1E90FF", 0.15))
 polygon(c(eff6$week, rev(eff6$week)),
         c(eff6$lower, rev(eff6$upper)),
-        border=NA, col=adjustcolor("red", 0.15))
+        border=NA, col=adjustcolor("#FFBBC1", 0.15))
 
 legend("topright", legend=c("df = 3", "df = 6"),
-       col=c("blue", "red"), lwd=2, bty="n")
-
+       col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+dev.off()
+} #duration
+{
 #_____
 # SCORE
 #______
@@ -221,30 +244,32 @@ library(effects)
 eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
                              xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
                                                        max(dat$week, na.rm=TRUE), length.out=200))))
-# eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
-#                              xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
-#                                                        max(dat$week, na.rm=TRUE), length.out=200))))
-
+eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
+                             xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                       max(dat$week, na.rm=TRUE), length.out=200))))
+png("kuvak1/kuva_sp2.png", width=1200, height=800, res=150)
 # Piirrä df=3 ensin
-plot(eff3$week, eff3$fit, type="l", lwd=2, col="blue",
-     xlab="Raskausviikko", ylab="Ennustettu unen kesto (h)",
-     main="Raskausviikon vaikutus unen laatuun",
+plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+     xlab="viikko", ylab="Ennustettu unen kesto (h)",
+     main="Ajan vaikutus unen laatuun",
      ylim=range(eff3$lower, eff3$upper))
 
 # Lisää df=6 päälle
-# lines(eff6$week, eff6$fit, lwd=2, col="red")
+lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
 
 # (valinnainen) luottamusvälit
 polygon(c(eff3$week, rev(eff3$week)),
         c(eff3$lower, rev(eff3$upper)),
-        border=NA, col=adjustcolor("blue", 0.15))
+        border=NA, col=adjustcolor("#1E90FF", 0.15))
 polygon(c(eff6$week, rev(eff6$week)),
         c(eff6$lower, rev(eff6$upper)),
-        border=NA, col=adjustcolor("red", 0.15))
+        border=NA, col=adjustcolor("#FFBBC1", 0.15))
 
 legend("topright", legend=c("df = 3", "df = 6"),
-       col=c("blue", "red"), lwd=2, bty="n")
-
+       col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+dev.off()
+}#score
+{
 #_____
 # Efficience
 #______
@@ -293,29 +318,35 @@ eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
                                                        max(dat$week, na.rm=TRUE), length.out=200))))
 
 # Piirrä df=3 ensin
-plot(eff3$week, eff3$fit, type="l", lwd=2, col="blue",
-     xlab="Raskausviikko", ylab="Ennustettu unen tehokkuuteen",
-     main="Raskausviikon vaikutus unen tehokkuuteen",
+png("kuvak1/kuva_sp3.png", width=1200, height=800, res=150)
+plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+     xlab="viikko", ylab="Ennustettu unen tehokkuuteen",
+     main="Ajan vaikutus unen tehokkuuteen",
      ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
 
 # Lisää df=6 päälle
-lines(eff6$week, eff6$fit, lwd=2, col="red")
+lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
 
 # (valinnainen) luottamusvälit
 polygon(c(eff3$week, rev(eff3$week)),
         c(eff3$lower, rev(eff3$upper)),
-        border=NA, col=adjustcolor("blue", 0.15))
+        border=NA, col=adjustcolor("#1E90FF", 0.15))
 polygon(c(eff6$week, rev(eff6$week)),
         c(eff6$lower, rev(eff6$upper)),
-        border=NA, col=adjustcolor("red", 0.15))
+        border=NA, col=adjustcolor("#FFBBC1", 0.15))
 
 legend("topright", legend=c("df = 3", "df = 6"),
-       col=c("blue", "red"), lwd=2, bty="n")
+       col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+dev.off()
+}# efficiency
+}
+  #Postpartum aineistolla
+{
 #_____
 dat <- postpartum
 dat <- dat %>%
   filter(!is.na(duration), !is.na(score), !is.na(efficiency),!is.na(steps_z), !is.na(id))
-
+{
 #______
 # Duration
 #______
@@ -369,27 +400,33 @@ eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
 eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
                              xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
                                                        max(dat$week, na.rm=TRUE), length.out=200))))
+eff4 <- as.data.frame(effect("ns(week, df = 4)", m_df4,
+                             xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                       max(dat$week, na.rm=TRUE), length.out=200))))
 
+png("kuvak1/kuva_spo1.png", width=1200, height=800, res=150)
 # Piirrä df=3 ensin
-plot(eff3$week, eff3$fit, type="l", lwd=2, col="blue",
-     xlab="Raskausviikko", ylab="Ennustettu unen kesto (h)",
-     main="Raskausviikon vaikutus unen kestoon",
-     ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
+plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+     xlab="viikko", ylab="Ennustettu unen kesto (h)",
+     main="Ajan vaikutus unen kestoon",
+     ylim=range(eff3$lower, eff3$upper, eff4$lower, eff4$upper))
 
 # Lisää df=6 päälle
-lines(eff6$week, eff6$fit, lwd=2, col="red")
+lines(eff4$week, eff4$fit, lwd=2, col="#FFBBC1")
 
-# (valinnainen) luottamusvälit
-# polygon(c(eff3$week, rev(eff3$week)),
-#         c(eff3$lower, rev(eff3$upper)),
-#         border=NA, col=adjustcolor("blue", 0.15))
-# polygon(c(eff6$week, rev(eff6$week)),
-#         c(eff6$lower, rev(eff6$upper)),
-#         border=NA, col=adjustcolor("red", 0.15))
+# luottamusvälit
+polygon(c(eff3$week, rev(eff3$week)),
+        c(eff3$lower, rev(eff3$upper)),
+        border=NA, col=adjustcolor("#1E90FF", 0.15))
+polygon(c(eff4$week, rev(eff4$week)),
+        c(eff4$lower, rev(eff4$upper)),
+        border=NA, col=adjustcolor("#FFBBC1", 0.15))
 
-legend("topright", legend=c("df = 3", "df = 6"),
-       col=c("blue", "red"), lwd=2, bty="n")
-
+legend("topright", legend=c("df = 3", "df = 4"),
+       col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+dev.off()
+} # duration
+{
 #______
 # Score
 #______
@@ -444,27 +481,29 @@ eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
 eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
                              xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
                                                        max(dat$week, na.rm=TRUE), length.out=200))))
-
+png("kuvak1/kuva_spo2.png", width=1200, height=800, res=150)
 # Piirrä df=3 ensin
-plot(eff3$week, eff3$fit, type="l", lwd=2, col="blue",
-     xlab="Raskausviikko", ylab="Ennustettu unen laatuun (0-100)",
-     main="Raskausviikon vaikutus unen laatu",
+plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+     xlab="viikko", ylab="Ennustettu unen laatuun (0-100)",
+     main="Ajan vaikutus unen laatu",
      ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
 
 # Lisää df=6 päälle
-lines(eff6$week, eff6$fit, lwd=2, col="red")
+lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
 
 # luottamusvälit
-# polygon(c(eff3$week, rev(eff3$week)),
-#         c(eff3$lower, rev(eff3$upper)),
-#         border=NA, col=adjustcolor("blue", 0.15))
-# polygon(c(eff6$week, rev(eff6$week)),
-#         c(eff6$lower, rev(eff6$upper)),
-#         border=NA, col=adjustcolor("red", 0.15))
+polygon(c(eff3$week, rev(eff3$week)),
+        c(eff3$lower, rev(eff3$upper)),
+        border=NA, col=adjustcolor("#1E90FF", 0.15))
+polygon(c(eff6$week, rev(eff6$week)),
+        c(eff6$lower, rev(eff6$upper)),
+        border=NA, col=adjustcolor("#FFBBC1", 0.15))
 
 legend("topright", legend=c("df = 3", "df = 6"),
-       col=c("blue", "red"), lwd=2, bty="n")
-
+       col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+dev.off()
+} #score
+{
 #______
 # Effiency
 #______
@@ -506,7 +545,6 @@ taulukko # latex koodi.
 # Lasketaan efektit
 eff_df3 <- effect("ns(week, df = 3)", m2)
 eff_df4 <- effect("ns(week, df = 4)", m_df4)
-
 eff_df6 <- effect("ns(week, df = 6)", m_df6)
 
 # Piirretään molemmat samaan kuvaan
@@ -517,30 +555,494 @@ eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
 eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
                              xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
                                                        max(dat$week, na.rm=TRUE), length.out=200))))
-
+png("kuvak1/kuva_spo3.png", width=1200, height=800, res=150)
 # Piirrä df=3 ensin
-plot(eff3$week, eff3$fit, type="l", lwd=2, col="blue",
-     xlab="Raskausviikko", ylab="Ennustettu unen tehokkuuteen",
-     main="Raskausviikon vaikutus unen tehokkuuteen",
+plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+     xlab="viikko", ylab="Ennustettu unen tehokkuuteen",
+     main="Ajan vaikutus unen tehokkuuteen",
      ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
 
 # Lisää df=6 päälle
-lines(eff6$week, eff6$fit, lwd=2, col="red")
+lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
 
 # luottamusvälit
-# polygon(c(eff3$week, rev(eff3$week)),
-#         c(eff3$lower, rev(eff3$upper)),
-#         border=NA, col=adjustcolor("blue", 0.15))
-# polygon(c(eff6$week, rev(eff6$week)),
-#         c(eff6$lower, rev(eff6$upper)),
-#         border=NA, col=adjustcolor("red", 0.15))
+polygon(c(eff3$week, rev(eff3$week)),
+        c(eff3$lower, rev(eff3$upper)),
+        border=NA, col=adjustcolor("#1E90FF", 0.15))
+polygon(c(eff6$week, rev(eff6$week)),
+        c(eff6$lower, rev(eff6$upper)),
+        border=NA, col=adjustcolor("#FFBBC1", 0.15))
 
 legend("topright", legend=c("df = 3", "df = 6"),
-       col=c("blue", "red"), lwd=2, bty="n")
+       col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+dev.off()
+}# efficiency
 
+}
+  
+}
 
-
-
+# with avgmet_z
+{
+  #Pregnancy aineistolla 
+  {
+    #______Lets use the same data for every var. 
+    dat <- pregnancy
+    dat <- dat %>%
+      filter(!is.na(duration), !is.na(score), !is.na(efficiency),!is.na(avgmet_z), !is.na(id))
+    {
+    #______
+    # Duration
+    #______
+    # Malli 1: Ilman aikaa
+    m0 <- lme(duration ~ avgmet_z, random = ~1 | id, data = dat,method = "ML")
+    summary(m0)
+    # Malli 2: Aika lineaarisena
+    m1 <- lme(duration ~ avgmet_z + week, random = ~1 | id, data = dat, method = "ML")
+    summary(m1)
+    
+    # Malli 3: Aika splinillä (epälineaarinen)
+    
+    m2 <- lme(duration ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat, method = "ML")
+    summary(m2)
+    
+    # Malli 4: Aktiivisuus muuttuu ajanmyötä 
+    
+    #m_df3 <- lme(duration ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    m_df4 <- lme(duration ~ avgmet_z + ns(week, df = 4), random = ~1 | id, data = dat, method = "ML")
+    m_df5 <- lme(duration ~ avgmet_z + ns(week, df = 5), random = ~1 | id, data = dat, method = "ML")
+    m_df6 <- lme(duration ~ avgmet_z + ns(week, df = 6), random = ~1 | id, data = dat, method = "ML")
+    
+    # tarkista_jaannokset(m2, "df = 3 spline malli")
+    # tarkista_jaannokset(m_df6, "df = 6 spline malli")
+    
+    taulukko <- taulukoi_mallit_latex(
+      m0, m1, m2, m_df4, m_df5, m_df6,
+      nimet = c("Ilman aikaa", "Aika lineaarisena", "df = 3", "df = 4", "df = 5", "df = 6"),
+      caption = "Splinien vaikutus raskauden aikana unen kestoon ($duration \\sim avgmet_z$; ML)",
+      file = "taulukko_duration_stepsz.tex",
+      lihavoi_bic = FALSE
+    )
+    taulukko # latex koodi.
+    
+    # Lasketaan efektit
+    eff_df3 <- effect("ns(week, df = 3)", m2)
+    eff_df4 <- effect("ns(week, df = 4)", m_df4)
+    
+    eff_df6 <- effect("ns(week, df = 6)", m_df6)
+    
+    # Piirretään molemmat samaan kuvaan
+    library(effects)
+    
+    # Efektit dataksi
+    eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    png("kuvak1/kuva_mp1.png", width=1200, height=800, res=150)
+    # Piirrä df=3 ensin
+    plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+         xlab="viikko", ylab="Ennustettu unen kesto (h)",
+         main="Ajan vaikutus unen kestoon",
+         ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
+    
+    # Lisää df=6 päälle
+    lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
+    
+    # (valinnainen) luottamusvälit
+    polygon(c(eff3$week, rev(eff3$week)),
+            c(eff3$lower, rev(eff3$upper)),
+            border=NA, col=adjustcolor("#1E90FF", 0.15))
+    polygon(c(eff6$week, rev(eff6$week)),
+            c(eff6$lower, rev(eff6$upper)),
+            border=NA, col=adjustcolor("#FFBBC1", 0.15))
+    
+    legend("topright", legend=c("df = 3", "df = 6"),
+           col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+    dev.off()
+      }# duration
+    {
+    #_____
+    # SCORE
+    #______
+    
+    # Malli 1: Ilman aikaa
+    m0 <- lme(score ~ avgmet_z, random = ~1 | id, data = dat, method = "ML")
+    
+    # Malli 2: Aika lineaarisena
+    m1 <- lme(score ~ avgmet_z + week, random = ~1 | id, data = dat, method = "ML")
+    
+    # Malli 3: Aika splinillä (epälineaarinen)
+    
+    m2 <- lme(score ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat, method = "ML")
+    
+    #AIC(m0, m1, m2, m3)
+    #BIC(m0, m1, m2, m3)
+    
+    #m_df3 <- lme(score ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    m_df4 <- lme(score ~ avgmet_z + ns(week, df = 4), random = ~1 | id, data = dat, method = "ML")
+    m_df5 <- lme(score ~ avgmet_z + ns(week, df = 5), random = ~1 | id, data = dat, method = "ML") #ongelma?
+    m_df6 <- lme(score ~ avgmet_z + ns(week, df = 6), random = ~1 | id, data = dat, method = "ML")
+    
+    #AIC(m0, m1, m2, m3, m_df4, m_df5, m_df6)
+    #BIC(m0, m1, m2, m3, m_df4, m_df5, m_df6)
+    
+    taulukko <- taulukoi_mallit_latex(
+      m0, m1, m2, m_df4, m_df5, m_df6,
+      nimet = c("Ilman aikaa", "Aika lineaarisena", "df = 3", "df = 4", "df = 5", "df = 6"),
+      caption = "Splinien vaikutus raskauden aikana unen kestoon ($duration \\sim avgmet_z$; ML)",
+      file = "taulukko_duration_stepsz.tex",
+      lihavoi_bic = FALSE
+    )
+    taulukko # latex koodi.
+    
+    # Lasketaan efektit
+    eff_df3 <- effect("ns(week, df = 3)", m2)
+    eff_df6 <- effect("ns(week, df = 6)", m_df6)
+    
+    # Piirretään molemmat samaan kuvaan
+    library(effects)
+    
+    # Efektit dataksi
+    eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    png("kuvak1/kuva_mp2.png", width=1200, height=800, res=150)
+    # Piirrä df=3 ensin
+    plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+         xlab="viikko", ylab="Ennustettu unen kesto (h)",
+         main="Ajan vaikutus unen laatuun",
+         ylim=range(eff3$lower, eff3$upper))
+    
+    # Lisää df=6 päälle
+    lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
+    
+    # (valinnainen) luottamusvälit
+    polygon(c(eff3$week, rev(eff3$week)),
+            c(eff3$lower, rev(eff3$upper)),
+            border=NA, col=adjustcolor("#1E90FF", 0.15))
+    polygon(c(eff6$week, rev(eff6$week)),
+            c(eff6$lower, rev(eff6$upper)),
+            border=NA, col=adjustcolor("#FFBBC1", 0.15))
+    
+    legend("topright", legend=c("df = 3", "df = 6"),
+           col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+    dev.off()
+    }# score
+    {
+    #_____
+    # Efficience
+    #______
+    dat <- pregnancy
+    dat <- dat %>%
+      filter(!is.na(efficiency), !is.na(avgmet_z), !is.na(id))
+    
+    # Malli 1: Ilman aikaa
+    m0 <- lme(efficiency ~ avgmet_z, random = ~1 | id, data = dat)
+    
+    # Malli 2: Aika lineaarisena
+    m1 <- lme(efficiency ~ avgmet_z + week, random = ~1 | id, data = dat)
+    
+    # Malli 3: Aika splinillä (epälineaarinen)
+    
+    m2 <- lme(efficiency ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    
+    #AIC(m0, m1, m2, m3)
+    #BIC(m0, m1, m2, m3)
+    
+    #m_df3 <- lme(efficiency ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    m_df4 <- lme(efficiency ~ avgmet_z + ns(week, df = 4), random = ~1 | id, data = dat)
+    m_df5 <- lme(efficiency ~ avgmet_z + ns(week, df = 5), random = ~1 | id, data = dat)
+    m_df6 <- lme(efficiency ~ avgmet_z + ns(week, df = 6), random = ~1 | id, data = dat)
+    
+    #AIC(m2, m_df3,m_df4, m_df5, m_df6)
+    #BIC(m2, m_df3,m_df4, m_df5, m_df6)
+    
+    taulukko <- taulukoi_mallit_latex(
+      m0, m1, m2, m_df4, m_df5, m_df6,
+      nimet = c("Ilman aikaa", "Aika lineaarisena", "df = 3", "df = 4", "df = 5", "df = 6"),
+      caption = "Splinien vaikutus raskauden aikana unen tehokkuuteen($efficiency \\sim avgmet_z$; ML)",
+      file = "taulukko_duration_stepsz.tex",
+      lihavoi_bic = FALSE
+    )
+    taulukko # latex koodi.
+    
+    # Piirretään molemmat samaan kuvaan
+    
+    # Efektit dataksi
+    eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    png("kuvak1/kuva_mp3.png", width=1200, height=800, res=150)
+    # Piirrä df=3 ensin
+    plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+         xlab="viikko", ylab="Ennustettu unen tehokkuuteen",
+         main="Ajan vaikutus unen tehokkuuteen",
+         ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
+    
+    # Lisää df=6 päälle
+    lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
+    
+    # (valinnainen) luottamusvälit
+    polygon(c(eff3$week, rev(eff3$week)),
+            c(eff3$lower, rev(eff3$upper)),
+            border=NA, col=adjustcolor("#1E90FF", 0.15))
+    polygon(c(eff6$week, rev(eff6$week)),
+            c(eff6$lower, rev(eff6$upper)),
+            border=NA, col=adjustcolor("#FFBBC1", 0.15))
+    
+    legend("topright", legend=c("df = 3", "df = 6"),
+           col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+    dev.off()
+  } # efficiency
+  }
+  #Postpartum aineistolla
+  {
+    #_____
+    dat <- postpartum
+    dat <- dat %>%
+      filter(!is.na(duration), !is.na(score), !is.na(efficiency),!is.na(avgmet_z), !is.na(id))
+    {
+    #______
+    # Duration
+    #______
+    
+    # Malli 1: Ilman aikaa
+    m0 <- lme(duration ~ avgmet_z, random = ~1 | id, data = dat)
+    
+    # Malli 2: Aika lineaarisena
+    m1 <- lme(duration ~ avgmet_z + week, random = ~1 | id, data = dat)
+    
+    # Malli 3: Aika splinillä (epälineaarinen)
+    
+    m2 <- lme(duration ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    
+    # Malli 4: Aktiivisuus muuttuu ajanmyötä 
+    #m3<- lme(duration ~ avgmet_z * ns(week, df = 4), random = ~1 | id, data = dat)
+    
+    
+    #AIC(m0, m1, m2, m3)
+    #BIC(m0, m1, m2, m3)
+    
+    #m_df3 <- lme(duration ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    m_df4 <- lme(duration ~ avgmet_z + ns(week, df = 4), random = ~1 | id, data = dat)
+    m_df5 <- lme(duration ~ avgmet_z + ns(week, df = 5), random = ~1 | id, data = dat)
+    m_df6 <- lme(duration ~ avgmet_z + ns(week, df = 6), random = ~1 | id, data = dat)
+    
+    #AIC(m2, m_df3,m_df4, m_df5, m_df6)
+    #BIC(m2, m_df3,m_df4, m_df5, m_df6)
+    
+    taulukko <- taulukoi_mallit_latex(
+      m0, m1, m2, m_df4, m_df5, m_df6,
+      nimet = c("Ilman aikaa", "Aika lineaarisena", "df = 3", "df = 4", "df = 5", "df = 6"),
+      caption = "Splinien vaikutus raskauden aikana unen kestoon ($duration \\sim avgmet_z$; ML, (Postpartum))",
+      file = "taulukko_duration_stepsz.tex",
+      lihavoi_bic = FALSE
+    )
+    taulukko # latex koodi.
+    
+    # Lasketaan efektit
+    eff_df3 <- effect("ns(week, df = 3)", m2)
+    eff_df4 <- effect("ns(week, df = 4)", m_df4)
+    
+    eff_df6 <- effect("ns(week, df = 6)", m_df6)
+    
+    # Piirretään molemmat samaan kuvaan
+    
+    # Efektit dataksi
+    eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    png("kuvak1/kuva_mpo1.png", width=1200, height=800, res=150)
+    # Piirrä df=3 ensin
+    plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+         xlab="viikko", ylab="Ennustettu unen kesto (h)",
+         main="Ajan vaikutus unen kestoon",
+         ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
+    
+    # Lisää df=6 päälle
+    lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
+    
+    # (valinnainen) luottamusvälit
+    polygon(c(eff3$week, rev(eff3$week)),
+            c(eff3$lower, rev(eff3$upper)),
+            border=NA, col=adjustcolor("#1E90FF", 0.15))
+    polygon(c(eff6$week, rev(eff6$week)),
+            c(eff6$lower, rev(eff6$upper)),
+            border=NA, col=adjustcolor("#FFBBC1", 0.15))
+    
+    legend("topright", legend=c("df = 3", "df = 6"),
+           col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+    dev.off()
+      } # duration
+{    #______
+    # Score
+    #______
+    
+    # Malli 1: Ilman aikaa
+    m0 <- lme(score ~ avgmet_z, random = ~1 | id, data = dat)
+    
+    # Malli 2: Aika lineaarisena
+    m1 <- lme(score ~ avgmet_z + week, random = ~1 | id, data = dat)
+    
+    # Malli 3: Aika splinillä (epälineaarinen)
+    
+    m2 <- lme(score ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    
+    # Malli 4: Aktiivisuus muuttuu ajanmyötä 
+    #m3<- lme(score ~ avgmet_z * ns(week, df = 4), random = ~1 | id, data = dat)
+    
+    
+    #AIC(m0, m1, m2, m3)
+    #BIC(m0, m1, m2, m3)
+    
+    #m_df3 <- lme(duration ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    m_df4 <- lme(score ~ avgmet_z + ns(week, df = 4), random = ~1 | id, data = dat)
+    m_df5 <- lme(score ~ avgmet_z + ns(week, df = 5), random = ~1 | id, data = dat)
+    m_df6 <- lme(score ~ avgmet_z + ns(week, df = 6), random = ~1 | id, data = dat)
+    
+    #AIC(m2, m_df3,m_df4, m_df5, m_df6)
+    #BIC(m2, m_df3,m_df4, m_df5, m_df6)
+    
+    taulukko <- taulukoi_mallit_latex(
+      m0, m1, m2, m_df4, m_df5, m_df6,
+      nimet = c("Ilman aikaa", "Aika lineaarisena", "df = 3", "df = 4", "df = 5", "df = 6"),
+      caption = "Splinien vaikutus raskauden aikana unen laatuun ($score \\sim avgmet_z$; ML, (Postpartum))",
+      file = "taulukko_duration_stepsz.tex",
+      lihavoi_bic = FALSE
+    )
+    taulukko # latex koodi.
+    
+    # Lasketaan efektit
+    eff_df3 <- effect("ns(week, df = 3)", m2)
+    eff_df4 <- effect("ns(week, df = 4)", m_df4)
+    eff_df6 <- effect("ns(week, df = 6)", m_df6)
+    
+    # Piirretään molemmat samaan kuvaan
+    library(effects)
+    
+    # Efektit dataksi
+    eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    eff4 <- as.data.frame(effect("ns(week, df = 4)", m_df4,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    png("kuvak1/kuva_mpo2.png", width=1200, height=800, res=150)
+    # Piirrä df=3 ensin
+    plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+         xlab="viikko", ylab="Ennustettu unen laatuun (0-100)",
+         main="Ajan vaikutus unen laatu",
+         ylim=range(eff3$lower, eff3$upper, eff4$lower, eff4$upper))
+    
+    # Lisää df=6 päälle
+    lines(eff4$week, eff4$fit, lwd=2, col="#FFBBC1")
+    
+    # luottamusvälit
+    polygon(c(eff3$week, rev(eff3$week)),
+            c(eff3$lower, rev(eff3$upper)),
+            border=NA, col=adjustcolor("#1E90FF", 0.15))
+    polygon(c(eff4$week, rev(eff4$week)),
+            c(eff4$lower, rev(eff4$upper)),
+            border=NA, col=adjustcolor("#FFBBC1", 0.15))
+    
+    legend("topright", legend=c("df = 3", "df = 4"),
+           col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+    dev.off()
+} # score 
+    {
+    #______
+    # Effiency
+    #______
+    
+    # Malli 1: Ilman aikaa
+    m0 <- lme(efficiency ~ avgmet_z, random = ~1 | id, data = dat)
+    
+    # Malli 2: Aika lineaarisena
+    m1 <- lme(efficiency ~ avgmet_z + week, random = ~1 | id, data = dat)
+    
+    # Malli 3: Aika splinillä (epälineaarinen)
+    
+    m2 <- lme(efficiency ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    
+    # Malli 4: Aktiivisuus muuttuu ajanmyötä 
+    #m3<- lme(efficiency ~ avgmet_z * ns(week, df = 4), random = ~1 | id, data = dat)
+    
+    
+    #AIC(m0, m1, m2, m3)
+    #BIC(m0, m1, m2, m3)
+    
+    #m_df3 <- lme(duration ~ avgmet_z + ns(week, df = 3), random = ~1 | id, data = dat)
+    m_df4 <- lme(efficiency ~ avgmet_z + ns(week, df = 4), random = ~1 | id, data = dat)
+    m_df5 <- lme(efficiency ~ avgmet_z + ns(week, df = 5), random = ~1 | id, data = dat)
+    m_df6 <- lme(efficiency ~ avgmet_z + ns(week, df = 6), random = ~1 | id, data = dat)
+    
+    #AIC(m2, m_df3,m_df4, m_df5, m_df6)
+    #BIC(m2, m_df3,m_df4, m_df5, m_df6)
+    
+    taulukko <- taulukoi_mallit_latex(
+      m0, m1, m2, m_df4, m_df5, m_df6,
+      nimet = c("Ilman aikaa", "Aika lineaarisena", "df = 3", "df = 4", "df = 5", "df = 6"),
+      caption = "Splinien vaikutus raskauden aikana unen tehokkuuteen ($efficiency \\sim avgmet_z$; ML, (Postpartum))",
+      file = "taulukko_duration_stepsz.tex",
+      lihavoi_bic = FALSE
+    )
+    taulukko # latex koodi.
+    
+    # Lasketaan efektit
+    eff_df3 <- effect("ns(week, df = 3)", m2)
+    eff_df4 <- effect("ns(week, df = 4)", m_df4)
+    
+    eff_df6 <- effect("ns(week, df = 6)", m_df6)
+    
+    # Piirretään molemmat samaan kuvaan
+    # Efektit dataksi
+    eff3 <- as.data.frame(effect("ns(week, df = 3)", m2,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    eff6 <- as.data.frame(effect("ns(week, df = 6)", m_df6,
+                                 xlevels = list(week = seq(min(dat$week, na.rm=TRUE),
+                                                           max(dat$week, na.rm=TRUE), length.out=200))))
+    png("kuvak1/kuva_mpo3.png", width=1200, height=800, res=150)
+    # Piirrä df=3 ensin
+    plot(eff3$week, eff3$fit, type="l", lwd=2, col="#1E90FF",
+         xlab="viikko", ylab="Ennustettu unen tehokkuuteen",
+         main="Ajan vaikutus unen tehokkuuteen",
+         ylim=range(eff3$lower, eff3$upper, eff6$lower, eff6$upper))
+    
+    # Lisää df=6 päälle
+    lines(eff6$week, eff6$fit, lwd=2, col="#FFBBC1")
+    
+    # luottamusvälit
+    polygon(c(eff3$week, rev(eff3$week)),
+            c(eff3$lower, rev(eff3$upper)),
+            border=NA, col=adjustcolor("#1E90FF", 0.15))
+    polygon(c(eff6$week, rev(eff6$week)),
+            c(eff6$lower, rev(eff6$upper)),
+            border=NA, col=adjustcolor("#FFBBC1", 0.15))
+    
+    legend("topright", legend=c("df = 3", "df = 6"),
+           col=c("#1E90FF", "#FFBBC1"), lwd=2, bty="n")
+    
+    dev.off()
+    
+  } # efficiency
+  }
+}
 
 
 
