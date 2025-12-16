@@ -27,56 +27,153 @@ format_p <- function(p) {
   if (p < 0.001) "$<0.001$" else sprintf("$%.3f$", p)
 }
 
-# Latex taulukko
-latex_main_inter_table <- function(mod,
-                                   alpha = 0.05,
-                                   digits = 3,
-                                   sort_within = c("none","p","abs_est"),
-                                   caption = "Kiinteät vaikutukset: päävaikutukset ja interaktiot",
-                                   label   = "tab:fixed_main_inter") {
-  sort_within <- match.arg(sort_within)
+latex_main_inter_full_table <- function(mod,
+                                        focal,
+                                        alpha = 0.05,
+                                        digits = 3,
+                                        caption = "Kiinteät vaikutukset: päävaikutukset, interaktiot ja ehdolliset vaikutukset",
+                                        label   = "tab:fixed_full") {
   
   td <- broom.mixed::tidy(mod, effects = "fixed") %>%
-    filter(!str_detect(term, drop_pattern)) %>%   # poista intercept & splinet
-    mutate(type = if_else(str_detect(term, ":"), "Interaktio", "Päävaikutus"))
+    dplyr::filter(!stringr::str_detect(term, drop_pattern))
   
-  if (!("df" %in% names(td))) stop("Tidy ei sisältänyt 'df' -saraketta; päivitä broom.mixed.")
+  if (!("df" %in% names(td))) stop("Tidy ei sisältänyt 'df' -saraketta; varmista lmerTest/broom.mixed asetukset.")
   
-  tcrit <- qt(1 - alpha/2, df = td$df)
+  tcrit_all <- stats::qt(1 - alpha/2, df = td$df)
+  
   td <- td %>%
-    mutate(
-      conf.low  = estimate - tcrit * std.error,
-      conf.high = estimate + tcrit * std.error,
-      label     = vapply(term, make_pretty_label, character(1)),
-      est_txt   = sprintf(paste0("%.", digits, "f"), estimate),
-      lo_txt    = sprintf(paste0("%.", digits, "f"), conf.low),
-      hi_txt    = sprintf(paste0("%.", digits, "f"), conf.high),
-      p_txt     = map_chr(p.value, format_p),
-      ci_txt    = paste0("$[", lo_txt, ",\\,", hi_txt, "]$")
+    dplyr::mutate(
+      conf.low  = estimate - tcrit_all * std.error,
+      conf.high = estimate + tcrit_all * std.error,
+      type = dplyr::if_else(stringr::str_detect(term, ":"), "Interaktio", "Päävaikutus"),
+      label = vapply(term, make_pretty_label, character(1)),
+      est_txt = sprintf(paste0("%.", digits, "f"), estimate),
+      lo_txt  = sprintf(paste0("%.", digits, "f"), conf.low),
+      hi_txt  = sprintf(paste0("%.", digits, "f"), conf.high),
+      p_txt   = purrr::map_chr(p.value, format_p),
+      ci_txt  = paste0("$[", lo_txt, ",\\,", hi_txt, "]$")
     )
   
-  # Järjestys ryhmien sisällä
-  td <- td %>%
-    group_by(type) %>%
-    { 
-      if (sort_within == "p") arrange(., p.value, .by_group = TRUE)
-      else if (sort_within == "abs_est") arrange(., desc(abs(estimate)), .by_group = TRUE)
-      else .
-    } %>%
-    ungroup()
+  focal_row <- td %>% dplyr::filter(term == focal, type == "Päävaikutus")
+  if (nrow(focal_row) != 1) stop("Fokaalista termiä ei löytynyt yksikäsitteisesti: ", focal)
   
-  # Rakenna LaTeX-runko kahdella osuudella
-  make_rows <- function(d) sprintf("%s & $%s$ & %s & %s \\\\",
-                                   d$label, d$est_txt, d$ci_txt, d$p_txt)
+  focal_label <- focal_row$label
   
-  rows_main <- td %>% filter(type == "Päävaikutus") %>% make_rows() %>% paste(collapse = "\n")
-  rows_int  <- td %>% filter(type == "Interaktio")  %>% make_rows() %>% paste(collapse = "\n")
+  focal_re <- paste0("(^", stringr::fixed(focal), ":)|(:", stringr::fixed(focal), "$)")
+  inter_td <- td %>%
+    dplyr::filter(type == "Interaktio") %>%
+    dplyr::filter(stringr::str_detect(term, paste0("(^", focal, ":)|(:", focal, "$)")))
+  
+  vc <- as.matrix(stats::vcov(mod))
+  
+  has_lmertest <- requireNamespace("lmerTest", quietly = TRUE)
+  
+  fe_names <- names(lme4::fixef(mod))
+  if (is.null(fe_names)) stop("fixef-nimiä ei löytynyt mallista.")
+  
+  group_list <- purrr::pmap_dfr(
+    inter_td,
+    function(term, estimate, ...){
+      parts <- strsplit(term, ":", fixed = TRUE)[[1]]
+      other_term <- parts[parts != focal]
+      if (length(other_term) != 1) return(NULL)
+      
+      other_label <- make_pretty_label(other_term)
+      group_label <- paste0(focal_label, " — ", other_label)
+
+      if (has_lmertest && all(c(focal, term) %in% fe_names)) {
+        L <- setNames(rep(0, length(fe_names)), fe_names)
+        L[focal] <- 1
+        L[term]  <- 1
+        
+        ct <- tryCatch(
+          lmerTest::contest1D(mod, L),
+          error = function(e) NULL
+        )
+        
+        if (!is.null(ct)) {
+          est_sum <- as.numeric(ct$Estimate)
+          se_sum  <- as.numeric(ct$SE)
+          df_sum  <- as.numeric(ct$df)
+          tcrit   <- stats::qt(1 - alpha/2, df = df_sum)
+          
+          lo_sum <- est_sum - tcrit * se_sum
+          hi_sum <- est_sum + tcrit * se_sum
+          
+          return(tibble::tibble(
+            label     = group_label,
+            estimate  = est_sum,
+            conf.low  = lo_sum,
+            conf.high = hi_sum
+          ))
+        }
+      }
+
+      if (!all(c(focal, term) %in% rownames(vc))) return(NULL)
+      
+      v_f       <- vc[focal, focal]
+      v_int     <- vc[term, term]
+      cov_f_int <- vc[focal, term]
+      
+      est_f   <- focal_row$estimate
+      est_int <- estimate
+      
+      est_sum <- est_f + est_int
+      var_sum <- v_f + v_int + 2 * cov_f_int
+      se_sum  <- sqrt(var_sum)
+      
+      df_focal <- focal_row$df
+      tcrit    <- stats::qt(1 - alpha/2, df = df_focal)
+      
+      lo_sum <- est_sum - tcrit * se_sum
+      hi_sum <- est_sum + tcrit * se_sum
+      
+      tibble::tibble(
+        label     = group_label,
+        estimate  = est_sum,
+        conf.low  = lo_sum,
+        conf.high = hi_sum
+      )
+    }
+  )
+  
+  if (nrow(group_list) > 0) {
+    group_list <- group_list %>%
+      dplyr::mutate(
+        est_txt = sprintf(paste0("%.", digits, "f"), estimate),
+        lo_txt  = sprintf(paste0("%.", digits, "f"), conf.low),
+        hi_txt  = sprintf(paste0("%.", digits, "f"), conf.high),
+        ci_txt  = paste0("$[", lo_txt, ",\\,", hi_txt, "]$")
+      )
+  }
+  
+  make_rows <- function(d) {
+    if (nrow(d) == 0) return("")
+    sprintf("%s & $%s$ & %s & %s \\\\",
+            d$label, d$est_txt, d$ci_txt, d$p_txt) %>%
+      paste(collapse = "\n")
+  }
+  
+  make_group_rows <- function(d) {
+    if (nrow(d) == 0) return("")
+    sprintf("%s & $%s$ & %s &  \\\\",
+            d$label, d$est_txt, d$ci_txt) %>%
+      paste(collapse = "\n")
+  }
+  
+  rows_main <- td %>% dplyr::filter(type == "Päävaikutus") %>% make_rows()
+  rows_int  <- td %>% dplyr::filter(type == "Interaktio")  %>% make_rows()
+  rows_grp  <- group_list %>% make_group_rows()
   
   body <- paste0(
-    "\\multicolumn{4}{l}{\\textit{Päävaikutukset}}\\\\\n",
-    rows_main,
-    "\n\\addlinespace\n\\multicolumn{4}{l}{\\textit{Interaktiot}}\\\\\n",
-    rows_int
+    "\\multicolumn{4}{l}{\\textit{Päävaikutukset}}\\\\
+", rows_main, "
+\\addlinespace
+\\multicolumn{4}{l}{\\textit{Interaktiot}}\\\\
+", rows_int, "
+\\addlinespace
+\\multicolumn{4}{l}{\\textit{Aktiivisuuden ehdolliset vaikutukset}}\\\\
+", rows_grp
   )
   
   out <- sprintf("\\begin{table}[H]
@@ -92,7 +189,7 @@ Muuttuja & Estimaatti & 95\\%% CI & p-arvo \\\\
 \\label{%s}
 \\end{table}", body, caption, label)
   
-  structure(out, data = td)
+  structure(out, data = list(tidy = td, group = group_list))
 }
 
 

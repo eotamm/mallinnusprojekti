@@ -10,7 +10,7 @@ library(splines)
 library(broom.mixed)
 library(stringr)
 library(ggeffects)
-library(fs)x
+library(fs)
 library(nlme)
 library(ggh4x)
 library(purrr)
@@ -472,15 +472,60 @@ plot_interaction_single(
 
 
 
-# Tulosteet latex-taulukkoon
-tab_post_eff_MI <- latex_main_inter_table(
-  m_post_eff_int,
-  digits = 3,
-  sort_within = "none",   # vaihtoehdot: "none", "p", "abs_est"
-  caption = "Synnytyksen jälkeen: unen tehokkuus — päävaikutukset ja interaktiot",
-  label   = "tab:post_eff_main_inter"
+# Latex taulukot
+tab_preg_dur_full <- latex_main_inter_full_table(
+  mod    = m_preg_dur_int,
+  focal  = "average_met",
+  caption = "Raskausaika: unen kesto — päävaikutukset, interaktiot ja aktiivisuuden ehdolliset vaikutukset",
+  label   = "tab:preg_dur_full"
 )
+cat(tab_preg_dur_full)
 
-# Tulosta
-cat(tab_post_eff_MI)
+
+tab_preg_score_full <- latex_main_inter_full_table(
+  mod    = m_preg_score_int,
+  focal  = "average_met_lag1",
+  caption = "Raskausaika: unen laatu (Oura-score) — päävaikutukset, interaktiot ja aktiivisuuden ehdolliset vaikutukset",
+  label   = "tab:preg_score_full"
+)
+cat(tab_preg_score_full)
+
+
+tab_preg_eff_full <- latex_main_inter_full_table(
+  mod    = m_preg_eff_int,
+  focal  = "average_met",
+  caption = "Raskausaika: unen tehokkuus — päävaikutukset, interaktiot ja aktiivisuuden ehdolliset vaikutukset",
+  label   = "tab:preg_eff_full"
+)
+cat(tab_preg_eff_full)
+
+
+tab_post_dur_full <- latex_main_inter_full_table(
+  mod    = m_post_dur_int,
+  focal  = "average_met",
+  caption = "Synnytyksen jälkeen: unen kesto — päävaikutukset, interaktiot ja aktiivisuuden ehdolliset vaikutukset",
+  label   = "tab:post_dur_full"
+)
+cat(tab_post_dur_full)
+
+
+tab_post_score_full <- latex_main_inter_full_table(
+  mod    = m_post_score_int,
+  focal  = "average_met_lag1",
+  caption = "Synnytyksen jälkeen: unen laatu (Oura-score) — päävaikutukset, interaktiot ja aktiivisuuden ehdolliset vaikutukset",
+  label   = "tab:post_score_full"
+)
+cat(tab_post_score_full)
+
+
+tab_post_eff_full <- latex_main_inter_full_table(
+  mod    = m_post_eff_int,
+  focal  = "average_met",
+  caption = "Synnytyksen jälkeen: unen tehokkuus — päävaikutukset, interaktiot ja aktiivisuuden ehdolliset vaikutukset",
+  label   = "tab:post_eff_full"
+)
+cat(tab_post_eff_full)
+
+
+
 
