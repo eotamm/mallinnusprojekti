@@ -1,3 +1,6 @@
+#####################################################################
+####### Mallinvalinta: Yksilöllisen aktiivisuuden keskistäminen #####
+
 library(tidyverse)
 library(haven)
 library(janitor)

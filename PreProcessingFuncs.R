@@ -1,4 +1,5 @@
-# Apufunktioita:________________________________________________________________
+#############################################################
+########## Apufunktioita datan esikäsittelyyn ###############
 
 #Lukee SAS tiedoston ja yhtenäistää kolumnien nimet. 
 read_sas<- function(p) {

@@ -1,4 +1,8 @@
-## Nimet
+####################################################################
+######### Funktiot taustamuuttujiin liittyviin analyyseihin ########
+
+
+# Nimet
 pretty_terms <- c(
   "average_met"         = "Aktiivisuus (z)",
   "average_met_lag1"    = "Aktiivisuus (ed. pvä, z)",

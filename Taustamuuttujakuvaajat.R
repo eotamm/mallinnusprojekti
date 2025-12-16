@@ -1,3 +1,6 @@
+##################################################################
+############ Taustamuuttujien suhteen tehdyt kuvaajat ############
+
 library(dplyr)
 library(forcats)
 library(ggplot2)
