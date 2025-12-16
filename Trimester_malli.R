@@ -161,19 +161,13 @@ efficiency_contrasts <- as.data.frame(em_efficiency$contrasts) %>%
 # Lisää luottamusväli ja poista SE ja df
 all_contrasts <- bind_rows(duration_contrasts, score_contrasts, efficiency_contrasts) %>%
   mutate(
-    sig = case_when(
-      p.value < 0.001 ~ "***",
-      p.value < 0.01  ~ "**",
-      p.value < 0.05  ~ "*",
-      TRUE ~ "ns"
-    ),
     t_crit = qt(0.975, df),
     lower_95 = estimate - t_crit * SE,
     upper_95 = estimate + t_crit * SE,
     contrast = factor(contrast, levels = c("T1 - T2", "T1 - T3", "T2 - T3")),
     outcome = factor(outcome, levels = c("Duration", "Score", "Efficiency"))
   ) %>%
-  select(outcome, contrast, estimate, lower_95, upper_95, p.value, sig)
+  select(outcome, contrast, estimate, lower_95, upper_95, p.value)
 
 
 
@@ -457,3 +451,59 @@ p_eff  <- p_trend_eff      + labs(title = NULL, subtitle = NULL, x=NULL, y=NULL)
 
 (p_dur + p_score + p_eff) 
 
+# ANOVA taulukot. 
+a_duration    <- car::Anova(lme_duration,   type = 3)
+a_score       <- car::Anova(lme_score,      type = 3)
+a_efficiency  <- car::Anova(lme_efficiency, type = 3)
+
+library(dplyr)
+library(tibble)
+
+extract_interaction <- function(model, outcome_label) {
+  car::Anova(model, type = 3) %>%
+    as.data.frame() %>%
+    rownames_to_column("term") %>%
+    filter(grepl(":trimester", term)) %>%
+    transmute(
+      Vaste = outcome_label,
+      `χ²`  = Chisq,
+      df    = Df,
+      `p-arvo` = `Pr(>Chisq)`
+    )
+}
+
+anova_interaction_table <- bind_rows(
+  extract_interaction(lme_duration,   "Unen kesto"),
+  extract_interaction(lme_score,      "Unen laatu"),
+  extract_interaction(lme_efficiency, "Unen tehokkuus")
+)
+
+anova_interaction_table
+df_to_latex(anova_interaction_table, caption = "Type III -Wald-testit liikunnan ja raskauskolmanneksen väliselle interaktiolle erikseen sovitetuissa lineaarisissa sekamalleissa eri vastemuuttujille.",
+            label   = "tab:ANOVA")
+
+# Efekti taulukko emtrends.
+
+
+get_trends <- function(mod, var, outcome){
+  emtrends(mod, ~ trimester, var = var) |>
+    summary(infer = TRUE) |>
+    as.data.frame() |>
+    transmute(
+      Vaste = outcome,
+      Raskauskolmannes = trimester,
+      Kaltevuus = !!sym(paste0(var, ".trend")),
+      lower_95 = lower.CL,
+      upper_95 = upper.CL
+    )
+}
+
+trends_table <- bind_rows(
+  get_trends(lme_duration,   "average_met_z",      "Unen kesto"),
+  get_trends(lme_score,      "average_met_lag1_z", "Unen laatu"),
+  get_trends(lme_efficiency, "average_met_z",      "Unen tehokkuus")
+)
+
+trends_table
+df_to_latex(trends_table, caption = "Liikunnan ja unen välinen yhteys eri raskauskolmanneksissa. Taulukossa esitetään liikunnan raskauskolmanneskohtaiset vaikutukset uneen kaltevuuksina sekä niiden 95 \\%:n luottamusvälit, estimoituna marginaalisina trendeinä (emtrends) erikseen sovitetuista lineaarisista sekamalleista. Altistemuuttujana on unen kestolle ja tehokkuudelle z-standardoitunut MET-arvo ja unen laadulle edellisen päivän z-standardoitunut MET-arvo.",
+            label   = "tab:emtrends")
