@@ -1,10 +1,9 @@
 # Visualisaatiot
-#
 # Tässä dokumentissa toteutetaan aineiston ensisijaiset visualisoinnit 
 # ennen varsinaisia analyysejä. Tarkoitus on saada yleiskuva aineistosta ja sen 
 # laadusta, sekä tunnistaa mahdollisia piirteitä, jotka voivat vaikuttaa myöhempiin malleihin.
-#
-#Funktioitten käyttö: Laita var muuttujan paikalle joku aikasarja muuttuja ja meta paikkalle joku kategorinen tausta muuttuja. 
+
+# Funktioitten käyttö: Laita var muuttujan paikalle joku aikasarja muuttuja ja meta paikkalle joku kategorinen tausta muuttuja. 
 
 # Kirjastot
 library(tidyverse)
@@ -18,8 +17,8 @@ library(patchwork)
 dir.path <- file.path("./data") # symlink. 
 
 # Haetaan puhdisteut aineistot
-pregnancy  <- readRDS(file.path(dir.path, "pregnancy_2025-09-24.rds"))  %>% as.data.frame()
-postpartum <- readRDS(file.path(dir.path, "postpartum_2025-09-24.rds")) %>% as.data.frame()
+pregnancy  <- readRDS(file.path(dir.path, "pregnancy_2025-10-09.rds"))  %>% as.data.frame() %>% mutate(duration=duration/3600)
+postpartum <- readRDS(file.path(dir.path, "postpartum_2025-10-09.rds")) %>% as.data.frame() %>% mutate(duration=duration/3600)
 
 # Visualisointi funktioita: 
 
@@ -238,34 +237,12 @@ agglomeroi <- function(
     agg_df <- dplyr::left_join(agg_df, meta_dat, by = "id")
   }
   
-  #Lisää luottamusväli
-  # if (compute_ci) {
-  #   bootstrap_summary <- function(x, conf = 0.95, R = 1000) {
-  #     means <- replicate(R, mean(sample(x, replace = TRUE), na.rm = TRUE))
-  #     stats::quantile(means, probs = c((1 - conf) / 2, 1 - (1 - conf) / 2), na.rm = TRUE)
-  #   }
-  #   
-  #   agg_df <- df |>
-  #     dplyr::group_by(dplyr::across(all_of(group_vars))) |>
-  #     dplyr::filter(dplyr::n() >= min_obs) |>
-  #     dplyr::summarise(
-  #       dplyr::across(
-  #         all_of(var),
-  #         list(
-  #           mean = ~ mean(.x, na.rm = TRUE),
-  #           lower = ~ bootstrap_summary(.x, conf_level)[1], # change this
-  #           upper = ~ bootstrap_summary(.x, conf_level)[2]
-  #         ),
-  #         .names = "{.col}_{.fn}"
-  #       ),
-  #       .groups = "drop"
-  #     )
-  # }
+
   
   if (compute_ci) {
-    agg_df <- df |>
-      dplyr::group_by(dplyr::across(all_of(group_vars))) |>
-      dplyr::filter(dplyr::n() >= min_obs) |>
+    agg_df <- df %>%
+      dplyr::group_by(dplyr::across(all_of(group_vars))) %>%
+      dplyr::filter(dplyr::n() >= min_obs) %>%
       dplyr::summarise(
         dplyr::across(
           all_of(var),
@@ -300,7 +277,7 @@ agglomeroi <- function(
   agg_df
 }
 # ____________Apufunktioita____________________________________________________
-
+{
 resolve_time_col <- function(dat) {
   if ("time_group" %in% names(dat)) {
     list(time_col = "time_group", x_lab = "Trimester / Postpartum")
@@ -324,7 +301,7 @@ pick_var_cols <- function(dat, var) {
        has_ci = has_ci)
 }
 
-
+}
 #______Line plots_____________________________________________________________
 plot_var_ts <- function(
     dat,                  # agglomeroi(..., id = FALSE, compute_ci = TRUE)  
@@ -339,7 +316,7 @@ plot_var_ts <- function(
   tc   <- resolve_time_col(dat)
   cols <- pick_var_cols(dat, var)
   
-  df <- dat |>
+  df <- dat %>%
     dplyr::mutate(
       .mean  = .data[[cols$mean_col]],
       .lower = if (!is.null(cols$lower_col)) .data[[cols$lower_col]] else NA_real_,
@@ -390,7 +367,7 @@ plot_var_id <- function(
   has_facet <- !is.null(facet_sym)
   time_sym  <- rlang::sym(tc$time_col)
   
-  df <- dat |>
+  df <- dat %>%
     dplyr::mutate(.mean = .data[[cols$mean_col]])
   
   if (!is.null(ids)) {
@@ -409,25 +386,25 @@ plot_var_id <- function(
   if (isTRUE(overlay_mean)) {
     # yksi arvo per id per aika (+ facet)
     per_id <- if (has_facet) {
-      df |>
-        dplyr::group_by(id, !!time_sym, !!facet_sym) |>
+      df %>%
+        dplyr::group_by(id, !!time_sym, !!facet_sym) %>%
         dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop")
     } else {
-      df |>
-        dplyr::group_by(id, !!time_sym) |>
+      df %>%
+        dplyr::group_by(id, !!time_sym) %>%
         dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop")
     }
     
     # keskiarvo yli id:ien per aika (+ facet)
     overlay <- if (has_facet) {
-      per_id |>
-        dplyr::group_by(!!time_sym, !!facet_sym) |>
-        dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop") |>
+      per_id %>%
+        dplyr::group_by(!!time_sym, !!facet_sym) %>%
+        dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop") %>%
         dplyr::arrange(!!time_sym, !!facet_sym)
     } else {
-      per_id |>
-        dplyr::group_by(!!time_sym) |>
-        dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop") |>
+      per_id %>%
+        dplyr::group_by(!!time_sym) %>%
+        dplyr::summarise(.mean = mean(.mean, na.rm = TRUE), .groups = "drop") %>%
         dplyr::arrange(!!time_sym)
     }
     
@@ -514,56 +491,328 @@ plot_var_box <- function(
   return(p)
 }
 
+# lisää time_group (sama logiikka kuin agglomeroi())
+make_time_group <- function(df, aika = c("trimester","week"), time = c("pre","post")) {
+  aika <- match.arg(aika); time <- match.arg(time)
+  stopifnot("week" %in% names(df))
+  df <- dplyr::filter(df, !is.na(week))
+  if (aika == "trimester") {
+    if (time == "pre") {
+      df$time_group <- dplyr::case_when(
+        df$week <= 12 ~ "T1",
+        df$week >= 13 & df$week <= 27 ~ "T2",
+        df$week >= 28 ~ "T3"
+      )
+    } else { # postpartum 3 viikon lohkot
+      df$time_group <- cut(
+        df$week,
+        breaks = c(0, 4, 8, 12),
+        include_lowest = TRUE,
+        right = TRUE,
+        labels = c("P1","P2","P3")
+      )
+    }
+  }
+  df
+}
 
-# Esimerkki kuvien luonti. 
-# Unen pituus alle ja yli 30 vuotiailla. 
-p1_preg<- plot_histo_kaikki(pregnancy,  "duration", "age_category", bins= 30, title="Yleinen unen pituus alle ja yli 30 vuotiailla", mode="facet")
-p2_preg<- plot_histo_kaikki(pregnancy,  "steps", "age_category", bins= 30, title="Yleinen askelten määrä pituus alle ja yli 30 vuotiailla", mode="facet")
+# histogrammi "kaikista" numeerisista mittamuuttujista
+# Facetoi histogrammit trimesterin SISÄLLÄ kategorisilla muuttujilla
+plot_hist_by_trimester <- function(
+    df,
+    var,                        # numeerinen mitta (esim. "steps")
+    cat = NULL,                 # kategorinen muuttuja (esim. "education")
+    aika = c("trimester","week"),
+    time = c("pre","post"),
+    bins = 30,
+    overlay = FALSE,            # TRUE = päällekkäin saman paneelin sisään fillillä
+    alpha = 0.35,               # läpinäkyvyys overlay-tilassa
+    free_y = TRUE,              # skaalataanko paneelien y-akseli erikseen
+    title = NULL
+){
+  aika <- match.arg(aika); time <- match.arg(time)
+  stopifnot("week" %in% names(df))
+  
+  # --- lisää time_group samalla logiikalla kuin agglomeroi() ---
+  df <- df[!is.na(df$week), ]
+  if (aika == "trimester") {
+    if (time == "pre") {
+      df$time_group <- dplyr::case_when(
+        df$week <= 12 ~ "T1",
+        df$week >= 13 & df$week <= 27 ~ "T2",
+        df$week >= 28 ~ "T3"
+      )
+    } else {
+      df$time_group <- cut(
+        df$week, breaks = c(0,4,8,12), include_lowest = TRUE, right = TRUE,
+        labels = c("P1","P2","P3")
+      )
+    }
+  } else {
+    df$time_group <- df$week
+  }
+  
+  # --- perusasetukset ---
+  ttl <- if (is.null(title)) {
+    paste0("Jakauma: ", var,
+           if (!is.null(cat)) paste0(" — ", cat), 
+           " (", if (time=="pre") "Trimesterit" else "Postpartum-lohkot", ")")
+  } else title
+  
+  # --- facet-grid tai overlay ---
+  if (isFALSE(overlay)) {
+    # Facet-grid: rivit = trimesterit, sarakkeet = cat
+    # Jos cat = NULL → vain rivit = trimesterit
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = .data[[var]])) +
+      ggplot2::geom_histogram(bins = bins, na.rm = TRUE) +
+      ggplot2::labs(title = ttl, x = var, y = "N") +
+      ggplot2::theme_minimal(base_size = 12)
+    
+    if (!is.null(cat)) {
+      p <- p + ggplot2::facet_grid(rows = ggplot2::vars(time_group),
+                                   cols = ggplot2::vars(.data[[cat]]),
+                                   scales = if (free_y) "free_y" else "fixed")
+    } else {
+      p <- p + ggplot2::facet_wrap(~ time_group, scales = if (free_y) "free_y" else "fixed")
+    }
+    
+  } else {
+    # Overlay: facet pelkästään trimesterillä; cat tulee väriksi (fill)
+    if (is.null(cat)) stop("overlay=TRUE vaatii `cat`-muuttujan.")
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = .data[[var]], fill = .data[[cat]])) +
+      ggplot2::geom_histogram(bins = bins, position = "identity", alpha = alpha, na.rm = TRUE) +
+      ggplot2::labs(title = ttl, x = var, y = "N", fill = cat) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::facet_wrap(~ time_group, scales = if (free_y) "free_y" else "fixed")
+  }
+  
+  # NA-laskuri alatitreeniksi (valinnainen)
+  n_na <- sum(is.na(df[[var]]))
+  if (n_na > 0) {
+    p <- p + ggplot2::labs(subtitle = paste0("Pudotettu ", n_na, " NA-arvoa"))
+  }
+  
+  p
+}
 
-p1_post<- plot_histo_kaikki(postpartum,  "duration","age_category", bins= 30, title="Yleinen unen pituus alle ja yli 30 vuotiailla", mode="facet")
-p2_post<- plot_histo_kaikki(postpartum,  "steps", "age_category",bins= 30, title="Yleinen askelten määrä pituus alle ja yli 30 vuotiailla", mode="facet")
-
-wrap_plots(p1_preg,p1_post)
-wrap_plots(p2_preg,p2_post, ncol=1)
-
-
-#Testataan agglomeraatio funktiota: 
-testi_pre<- agglomeroi(pregnancy, c("steps", "duration","score"), NULL, "week", id=FALSE, format="long", compute_ci = TRUE) 
-testi_post<- agglomeroi(postpartum, c("steps", "duration","score"), NULL, "week", id=FALSE, format="long", compute_ci = TRUE) 
-
-testi2<- agglomeroi(pregnancy, c("steps", "duration"), "education", "week", id=FALSE, format="long", compute_ci = FALSE)
-testi2.2<- agglomeroi(pregnancy, c("steps", "duration"), "education", "week", id=FALSE, format="long", compute_ci = TRUE)
-testi3<- agglomeroi(pregnancy, c("steps", "duration"), NULL, "week", id=TRUE, format="long", compute_ci = FALSE)
-testi3.3<- agglomeroi(pregnancy, c("steps", "duration"), NULL, "week", id=TRUE, format="long", compute_ci = FALSE)
-
-testi_tri1<- agglomeroi(pregnancy, c("steps", "duration"), NULL, "trimester", id=TRUE, format="long", compute_ci = FALSE)
-testi_tri2 <- agglomeroi(pregnancy, c("steps", "duration"), NULL, "trimester", id=NULL, format="long", compute_ci = TRUE)
-agglomeroi(pregnancy, c("steps", "duration"), NULL, "trimester", id=TRUE, format="wide", compute_ci = TRUE)
+plot_hist_by_trimester(
+  pregnancy,
+  var = "duration",
+  cat = "age_category",
+  aika = "trimester",
+  time = "pre",
+  bins = 30,
+  overlay = FALSE
+)
 
 
-plot_var_ts(testi2, "steps", "education")
+#score on vasemmalle vino normaalisti 
+p1<- plot_histo_kaikki(pregnancy,  "score", bins= 100, title="Ei muunnettu")
 
+p2<- pregnancy %>% dplyr::mutate(score=log(100-score)) %>%
+  plot_histo_kaikki(.,  "score", bins= 100, title="log(100-score)")
 
-
-p1 <- plot_var_ts(testi_pre, "steps") + ggtitle("Prepartum")
-p2 <- plot_var_ts(testi_post, "steps") + ggtitle("Postpartum")
-p3 <- plot_var_ts(testi_pre, "duration")
-p4 <- plot_var_ts(testi_post, "duration")
-p5 <- plot_var_ts(testi_pre, "score")
-p6 <- plot_var_ts(testi_post, "score")
-
-((p1 | p2) / (p3 | p4) /(p5|p6)) + 
-  plot_annotation(title = "Askeleet, unen kesto ja laatu")&
-theme(plot.title = element_text(hjust = 0.5))
+p3<- pregnancy %>% dplyr::mutate(score=log(100-score)) %>%
+  plot_histo_kaikki(.,  "score","age_category", bins= 100, title="age catgory")
+p4<- pregnancy %>% dplyr::mutate(score=log(100-score)) %>%
+  plot_histo_kaikki(.,  "score","education", bins= 100, title="education")
+((p1 | p2) / (p3)/(p4) )+
+  plot_annotation(title = "Score pregnancy") &
+  theme(plot.title = element_text(hjust = 0.5))
 
 
 
-plot_var_ts(testi2.2, "duration", "education")
-plot_var_id(testi3, "steps",facet="delivery_method")
+pregnancy %>% dplyr::mutate(duration=duration) %>%
+  plot_histo_kaikki(.,  "duration", bins= 100, title="Duration jakauma")
+
+pregnancy %>% dplyr::mutate(steps=log10(steps)) %>%
+  plot_histo_kaikki(.,  "steps", bins= 100, title="Steps jakauma")
 
 
-plot_var_id(testi_tri1, "steps", "delivery_method")
-plot_var_box(testi_tri1, "steps", "delivery_method")
+{
 
-plot_var_box(testi_tri1, "steps")
+pregnancy %>% nrow()# Pregnancy
+p1<- pregnancy %>% 
+  dplyr::filter(!is.na(duration)) %>% 
+  plot_histo_kaikki(var = "duration",
+                    title = "Pregnancy: Unen kesto (h)")
+p2<- pregnancy %>% 
+  dplyr::filter(!is.na(score)) %>% 
+  plot_histo_kaikki(var = "score",
+                    title = "Pregnancy: Unen laatu")
 
+p3<- pregnancy %>% 
+  dplyr::filter(!is.na(score)) %>% 
+  plot_histo_kaikki(var = "efficiency",
+                    title = "Pregnancy: Unen tehokkuus")
+
+plots <- p1 / p2 / p3
+png("kuvak1/Pregnancy_histograms.png", 
+    width = 1200, height = 1600, res = 150)
+
+print(plots)   
+
+dev.off()
+  }
+{
+# Postpartum 
+p1<- postpartum %>% 
+  dplyr::filter(!is.na(duration)) %>% 
+  plot_histo_kaikki(var = "duration",
+                    title = "Postpartum: Unen kesto (h)")
+p2<- postpartum %>% 
+  dplyr::filter(!is.na(score)) %>% 
+  plot_histo_kaikki(var = "score",
+                    title = "Postpartum: Unen laatu")
+
+p3<- postpartum %>% 
+  dplyr::filter(!is.na(score)) %>% 
+  plot_histo_kaikki(var = "efficiency",
+                    title = "Postpartum: Unen tehokkuus")
+plots <- p1 / p2 / p3
+png("kuvak1/Postpartum_histograms.png", 
+    width = 1200, height = 1600, res = 150)
+
+print(plots)  
+dev.off()
+}
+
+
+{
+  preg_dur_week <- agglomeroi(
+    df         = pregnancy,
+    var        = "duration",   
+    meta       = NULL,         
+    aika       = "week",       
+    id         = FALSE,        
+    format     = "long",       
+    min_obs    = 1,            
+    compute_ci = TRUE,         
+    conf_level = 0.95,
+    time       = "pre"         
+  )
+  preg_eff_week <- agglomeroi(
+    df         = pregnancy,
+    var        = "efficiency",   
+    meta       = NULL,         
+    aika       = "week",       
+    id         = FALSE,        
+    format     = "long",      
+    min_obs    = 1,            
+    compute_ci = TRUE,       
+    conf_level = 0.95,
+    time       = "pre"         
+  )
+  preg_sc_week <- agglomeroi(
+    df         = pregnancy,
+    var        = "score",   
+    meta       = NULL,         
+    aika       = "week",       
+    id         = FALSE,        
+    format     = "long",      
+    min_obs    = 1,            
+    compute_ci = TRUE,       
+    conf_level = 0.95,
+    time       = "pre"         
+  )
+  
+  p_preg_dur <- plot_var_ts(
+    dat  = preg_dur_week,
+    var  = "duration"          
+  ) +
+    ggplot2::labs(
+      title = NULL,
+      y     = "Unen kesto (h)"
+    )
+  p_preg_eff <- plot_var_ts(
+    dat  = preg_eff_week,
+    var  = "efficiency"         
+  ) +
+    ggplot2::labs(
+      title = NULL,
+      y     = "Unen tehokkuus"
+    )
+  p_preg_sc <- plot_var_ts(
+    dat  = preg_sc_week,
+    var  = "score"          
+  ) +
+    ggplot2::labs(
+      title = NULL,
+      y     = "Unen laatu"
+    )
+  
+  plots<- p_preg_dur/p_preg_eff/p_preg_sc
+}
+png("kuvak1/pregnancy_week.png", 
+    width = 1200, height = 1600, res = 150)
+plots
+dev.off()
+{
+  preg_dur_week <- agglomeroi(
+    df         = postpartum,
+    var        = "duration",   
+    meta       = NULL,         
+    aika       = "week",       
+    id         = FALSE,        
+    format     = "long",       
+    min_obs    = 1,            
+    compute_ci = TRUE,         
+    conf_level = 0.95,
+    time       = "post"         
+  )
+  preg_eff_week <- agglomeroi(
+    df         = postpartum,
+    var        = "efficiency",   
+    meta       = NULL,         
+    aika       = "week",       
+    id         = FALSE,        
+    format     = "long",      
+    min_obs    = 1,            
+    compute_ci = TRUE,       
+    conf_level = 0.95,
+    time       = "post"         
+  )
+  preg_sc_week <- agglomeroi(
+    df         = postpartum,
+    var        = "score",   
+    meta       = NULL,         
+    aika       = "week",       
+    id         = FALSE,        
+    format     = "long",      
+    min_obs    = 1,            
+    compute_ci = TRUE,       
+    conf_level = 0.95,
+    time       = "post"         
+  )
+  
+  p_preg_dur <- plot_var_ts(
+    dat  = preg_dur_week,
+    var  = "duration"          
+  ) +
+    ggplot2::labs(
+      title = NULL,
+      y     = "Unen kesto (h)"
+    )
+  p_preg_eff <- plot_var_ts(
+    dat  = preg_eff_week,
+    var  = "efficiency"         
+  ) +
+    ggplot2::labs(
+      title = NULL,
+      y     = "Unen tehokkuus"
+    )
+  p_preg_sc <- plot_var_ts(
+    dat  = preg_sc_week,
+    var  = "score"          
+  ) +
+    ggplot2::labs(
+      title = NULL,
+      y     = "Unen laatu"
+    )
+  
+  plots<- p_preg_dur/p_preg_eff/p_preg_sc
+}
+png("kuvak1/postpartum_week.png", 
+    width = 1200, height = 1600, res = 150)
+plots
+dev.off()
