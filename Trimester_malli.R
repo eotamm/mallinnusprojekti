@@ -23,10 +23,6 @@ library(emmeans) # parittaisille vertailuille.
 library(car) # ANOVA. 
 }
 
-#' Ei vielä sovittuja kysymyksiä, jotka voivat vaikuttaa lopulliseen malliin:
-#' 1. Otetaanko autokorrelaatio huomioon. 
-#' Skaalataanko vastemuuttuja?
-#' Millä tavalla p-arvot korjataan tai korjataanko? 
 
 # Teema
 golden_coast_colors <- c("#FFD700", "#1E90FF", "#FF6F20", "#FFBBC1", "#2082AA") 
@@ -275,21 +271,12 @@ p_trend_eff <- ggplot(efficiency_trends,
   )
 
 #Contrast plot? 
-all_contrasts_plot <- all_contrasts %>%
-  mutate(
-    sig_level = case_when(
-      p.value < 0.001 ~ "p < 0.001",
-      p.value < 0.01  ~ "p < 0.01",
-      p.value < 0.05  ~ "p < 0.05",
-      TRUE ~ "ns"
-    ),
-    sig_level = factor(sig_level, levels = c("p < 0.001", "p < 0.01", "p < 0.05", "ns"))
-  )
+all_contrasts_plot <- all_contrasts
 
 p_contrasts <- ggplot(all_contrasts_plot, 
                       aes(x = contrast, y = outcome, fill = estimate)) +
   geom_tile(color = "white", linewidth = 1) +
-  geom_text(aes(label = paste0(round(estimate, 3), "\n", sig)), 
+  geom_text(aes(label = paste0(round(estimate, 3), "\n")), 
             color = "white", fontface = "bold", size = 4) +
   scale_fill_gradient2(
     low = golden_coast_colors[2],    # sininen negatiivisille
@@ -395,51 +382,7 @@ p_combined_marginal <- (p_duration_improved + p_score_improved + p_efficiency_im
 print(p_combined_marginal)
 ggsave("trimester_marginal_effects.png", p_combined_marginal, width = 15, height = 5, dpi = 300)
 
-# Dot whisker vain trimesters (emmeans)... 
 
-duration_int <- tidy(lme_duration, effects = "fixed") %>%
-  filter(grepl("average_met_z:trimester", term)) %>%
-  mutate(model = "Duration")
-
-score_int <- tidy(lme_score, effects = "fixed") %>%
-  filter(grepl("average_met_lag1_z:trimester", term)) %>%
-  mutate(model = "Score")
-
-efficiency_int <- tidy(lme_efficiency, effects = "fixed") %>%
-  filter(grepl("average_met_z:trimester", term)) %>%
-  mutate(model = "Efficiency")
-
-all_interactions <- bind_rows(duration_int, score_int, efficiency_int) %>%
-  mutate(
-    term = case_when(
-      grepl("T2", term) ~ "MET × T2 vs T1",
-      grepl("T3", term) ~ "MET × T3 vs T1",
-      TRUE ~ term
-    ),
-    sig = if_else(p.value < 0.05, "sig", "ns")
-  )
-
-p_interactions_dw <- ggplot(all_interactions, 
-                            aes(x = estimate, y = term, color = sig)) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +
-  geom_point(size = 3) +
-  geom_errorbarh(aes(xmin = estimate - 1.96*std.error, 
-                     xmax = estimate + 1.96*std.error), 
-                 height = 0.2, linewidth = 1) +
-  facet_wrap(~model, ncol = 1) +
-  scale_color_manual(values = c("ns" = "#1f77b4", "sig" = "#FF6F20")) +
-  labs(
-    x = "Estimaatti (95% CI)",
-    y = "",
-    title = "Interaktiokertoimet: Eroaako liikunnan vaikutus T1:stä?"
-  ) +
-  theme_golden_coast +
-  theme(
-    legend.position = "none",
-    strip.text = element_text(face = "bold")
-  )
-
-print(p_interactions_dw)
 
 # Lopulliset kuvat raporttia varten.
 # Trimester trendit: 
@@ -507,3 +450,8 @@ trends_table <- bind_rows(
 trends_table
 df_to_latex(trends_table, caption = "Liikunnan ja unen välinen yhteys eri raskauskolmanneksissa. Taulukossa esitetään liikunnan raskauskolmanneskohtaiset vaikutukset uneen kaltevuuksina sekä niiden 95 \\%:n luottamusvälit, estimoituna marginaalisina trendeinä (emtrends) erikseen sovitetuista lineaarisista sekamalleista. Altistemuuttujana on unen kestolle ja tehokkuudelle z-standardoitunut MET-arvo ja unen laadulle edellisen päivän z-standardoitunut MET-arvo.",
             label   = "tab:emtrends")
+
+# VarCorr(lme_duration)
+# VarCorr(lme_score)
+# VarCorr(lme_efficiency)
+
