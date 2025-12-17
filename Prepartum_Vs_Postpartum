@@ -67,232 +67,205 @@ postpartum$average_met_lag1 <- scale(postpartum$average_met_lag1)
 out_dir <- file.path("figures", "taustamuuttujamallit")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
+
+
+
+
+
+
 ################################################################################
-# Visualisointi ilman muuttujia
+# Datan yhdistys
 ################################################################################
-library(dplyr)
-library(ggplot2)
-library(nlme)
-library(ggeffects)
+data_all <- bind_rows(
+  pregnancy  %>% mutate(period = "pregnancy"),
+  postpartum %>% mutate(period = "postpartum")
+)
 
-# Lisätään period-sarakkeet ennen yhdistämistä
-pregnancy <- pregnancy %>% mutate(period = "pregnancy")
-postpartum <- postpartum %>% mutate(period = "postpartum")
+data_all$period <- factor(data_all$period,
+                          levels = c("pregnancy", "postpartum"))
 
-# Yhdistetään
-data_all <- bind_rows(pregnancy, postpartum)
 
-# Muutetaan factoriksi
-data_all$period <- factor(data_all$period, levels = c("pregnancy", "postpartum"))
+############################################################################
+# Score
+################################################################################
+# Puhdistettu data
+################################################################################
+data_all_clean <- data_all %>%
+  filter(
+    !is.na(duration),
+    !is.na(average_met),
+    !is.na(period)
+  )
 
 ################################################################################
 # Duration
 ################################################################################
-m_duration <- lme(
-  fixed = duration ~ average_met * period,
-  random = ~ 1 | id,
-  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
-  data = data_all,
-  method = "REML",
-  na.action = na.omit
-)
-
-pred_dur <- ggpredict(m_duration, terms = c("average_met", "period"))
-
-# Plot
-ggplot(pred_dur, aes(x = x, y = predicted, color = group)) +
-  geom_line(linewidth = 1.2) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.15, color = NA) +
-  scale_color_manual(values = c("#FF6F20", "#1E90FF")) +
-  labs(x = "Average MET",
-       y = "Predicted Duration",
-       title = "Duration vs MET") +
-  theme_minimal()
-
-################################################################################
-# Score (lag 1 predictor)
-################################################################################
-m_score <- lme(
-  fixed = score ~ average_met_lag1 * period,
-  random = ~ 1 | id,
-  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
-  data = data_all,
-  method = "REML",
-  na.action = na.omit
-)
-
-pred_score <- ggpredict(m_score, terms = c("average_met_lag1", "period"))
-
-# Plot
-ggplot(pred_score, aes(x = x, y = predicted, color = group)) +
-  geom_line(linewidth = 1.2) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.15, color = NA) +
-  scale_color_manual(values = c("#FF6F20", "#1E90FF")) +
-  labs(x = "Average MET (lag 1)",
-       y = "Predicted Score",
-       title = "Score vs MET lag1") +
-  theme_minimal()
-
-################################################################################
-# Efficiency
-################################################################################
-m_efficiency <- lme(
-  fixed = efficiency ~ average_met * period,
-  random = ~ 1 | id,
-  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
-  data = data_all,
-  method = "REML",
-  na.action = na.omit
-)
-
-pred_eff <- ggpredict(m_efficiency, terms = c("average_met", "period"))
-
-# Plot
-ggplot(pred_eff, aes(x = x, y = predicted, color = group)) +
-  geom_line(linewidth = 1.2) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.15, color = NA) +
-  scale_color_manual(values = c("#FF6F20", "#1E90FF")) +
-  labs(x = "Average MET",
-       y = "Predicted Efficiency",
-       title = "Efficiency vs MET") +
-  theme_minimal()
-
-################################################################################
-# Mallien yhteenveto
-################################################################################
-summary(m_duration)
-summary(m_score)
-summary(m_efficiency)
-
-
-################################################################################
-# Visualisointi muuttujilla
-################################################################################
-library(dplyr)
-library(ggplot2)
-library(nlme)
-library(ggeffects)
-# Lisätään period-sarakkeet ennen yhdistämistä
-pregnancy <- pregnancy %>% mutate(period = "pregnancy")
-postpartum <- postpartum %>% mutate(period = "postpartum")
-
-# Yhdistetään
-data_all <- bind_rows(pregnancy, postpartum)
-
-# Muutetaan factoriksi
-data_all$period <- factor(data_all$period, levels = c("pregnancy", "postpartum"))
-
-
-
-# Varmistetaan, että data_all sisältää molemmat jaksot
-data_all <- bind_rows(pregnancy, postpartum)
-data_all$period <- factor(data_all$period, levels = c("pregnancy", "postpartum"))
-
-################################################################################
-# Duration
-################################################################################
-m_duration <- lme(
-  fixed = duration ~ average_met * period +
+m_duration_combined <- lme(
+  duration ~ average_met * period +
     age_category + education + previous_children +
-    epds_category + bmi_bl2 + gt_weight_gain +
-    pp_weight_lost + delivery_method,
-  random = ~ 1 | id,
-  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
-  data = data_all,
+    epds_category + bmi_bl2,
+  random = ~ average_met | id,
+  data = data_all_clean,
   method = "REML",
-  na.action = na.omit
+  na.action = na.omit,
+  control = lmeControl(opt = "optim")
 )
 
-pred_dur <- ggpredict(m_duration, terms = c("average_met", "period"))
+summary(m_duration_combined)
 
+################################################################################
+# Predictions
+################################################################################
+pred_dur <- ggpredict(
+  m_duration_combined,
+  terms = c("average_met [all]", "period")
+)
+
+################################################################################
 # Plot
-ggplot() +
-  geom_point(data = data_all,
-             aes(x = average_met, y = duration),
-             color = "grey40", alpha = 0.4, size = 1) +
-  geom_line(data = pred_dur,
-            aes(x = x, y = predicted, color = group), size = 1.2) +
-  geom_ribbon(data = pred_dur,
-              aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.15, color = NA) +
+################################################################################
+p_duration <- ggplot() +
+  geom_point(
+    data = data_all_clean,
+    aes(x = average_met, y = duration),
+    color = "grey40", alpha = 0.35, size = 1
+  ) +
+  geom_line(
+    data = pred_dur,
+    aes(x = x, y = predicted, color = group),
+    size = 1.3
+  ) +
+  geom_ribbon(
+    data = pred_dur,
+    aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
+    alpha = 0.2, color = NA
+  ) +
   scale_color_manual(values = c("#FF6F20", "#1E90FF")) +
-  labs(x = "Average MET",
-       y = "Predicted Duration",
-       title = "Duration vs MET") +
+  scale_fill_manual(values = c("#FF6F20", "#1E90FF")) +
+  labs(
+    x = "Average MET",
+    y = "Predicted duration (hours)",
+    title = "Duration vs Average MET"
+  ) +
   theme_minimal()
 
+print(p_duration)
+
+
 ################################################################################
-# Score (lag 1 predictor)
+# Score
 ################################################################################
-m_score <- lme(
-  fixed = score ~ average_met_lag1 * period +
+################################################################################
+# Clean data for lag model
+################################################################################
+data_all_lag <- data_all %>%
+  filter(
+    !is.na(score),
+    !is.na(average_met_lag1)
+  )
+
+################################################################################
+# Score
+################################################################################
+m_score_combined <- lme(
+  score ~ average_met_lag1 * period +
     age_category + education + previous_children +
-    epds_category + bmi_bl2 + gt_weight_gain +
-    pp_weight_lost + delivery_method,
-  random = ~ 1 | id,
-  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
-  data = data_all,
+    epds_category + bmi_bl2,
+  random = ~ average_met_lag1 | id,
+  data = data_all_lag,
   method = "REML",
-  na.action = na.omit
+  na.action = na.omit,
+  control = lmeControl(opt = "optim")
 )
 
-pred_score <- ggpredict(m_score, terms = c("average_met_lag1", "period"))
+summary(m_score_combined)
 
-# Plot
+pred_score <- ggpredict(
+  m_score_combined,
+  terms = c("average_met_lag1 [all]", "period")
+)
+
 ggplot() +
-  geom_point(data = data_all,
-             aes(x = average_met_lag1, y = score),
-             color = "grey40", alpha = 0.4, size = 1) +
-  geom_line(data = pred_score,
-            aes(x = x, y = predicted, color = group), size = 1.2) +
-  geom_ribbon(data = pred_score,
-              aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.15, color = NA) +
+  geom_point(
+    data = data_all_lag,
+    aes(x = average_met_lag1, y = score),
+    color = "grey40", alpha = 0.35, size = 1
+  ) +
+  geom_line(
+    data = pred_score,
+    aes(x = x, y = predicted, color = group),
+    size = 1.3
+  ) +
+  geom_ribbon(
+    data = pred_score,
+    aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
+    alpha = 0.2
+  ) +
   scale_color_manual(values = c("#FF6F20", "#1E90FF")) +
-  labs(x = "Average MET (lag 1)",
-       y = "Predicted Score",
-       title = "Score vs MET lag1") +
+  scale_fill_manual(values = c("#FF6F20", "#1E90FF")) +
+  labs(
+    x = "Average MET (lag 1, standardized)",
+    y = "Predicted score",
+    title = "Score vs Average MET (lag 1) by period"
+  ) +
   theme_minimal()
 
-################################################################################
-# Efficiency
-################################################################################
-m_efficiency <- lme(
-  fixed = efficiency ~ average_met * period +
+
+
+##############################################################################
+# Effiency
+#############################################################################
+data_all_eff <- data_all %>%
+  filter(
+    !is.na(efficiency),
+    !is.na(average_met),
+    !is.na(period)
+  )
+
+m_efficiency_combined <- lme(
+  efficiency ~ average_met * period +
     age_category + education + previous_children +
-    epds_category + bmi_bl2 + gt_weight_gain +
-    pp_weight_lost + delivery_method,
-  random = ~ 1 | id,
-  correlation = corCAR1(form = ~ as.numeric(summary_date) | id),
-  data = data_all,
+    epds_category + bmi_bl2,
+  random = ~ average_met | id,
+  data = data_all_eff,
   method = "REML",
-  na.action = na.omit
+  na.action = na.omit,
+  control = lmeControl(opt = "optim")
 )
 
-pred_eff <- ggpredict(m_efficiency, terms = c("average_met", "period"))
+summary(m_efficiency_combined)
 
-# Plot
-ggplot() +
-  geom_point(data = data_all,
-             aes(x = average_met, y = efficiency),
-             color = "grey40", alpha = 0.4, size = 1) +
-  geom_line(data = pred_eff,
-            aes(x = x, y = predicted, color = group), size = 1.2) +
-  geom_ribbon(data = pred_eff,
-              aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.15, color = NA) +
+
+pred_eff <- ggpredict(
+  m_efficiency_combined,
+  terms = c("average_met [all]", "period")
+)
+
+
+p_efficiency <- ggplot() +
+  geom_point(
+    data = data_all_eff,
+    aes(x = average_met, y = efficiency),
+    color = "grey40", alpha = 0.35, size = 1
+  ) +
+  geom_line(
+    data = pred_eff,
+    aes(x = x, y = predicted, color = group),
+    size = 1.3
+  ) +
+  geom_ribbon(
+    data = pred_eff,
+    aes(x = x, ymin = conf.low, ymax = conf.high, fill = group),
+    alpha = 0.2, color = NA
+  ) +
   scale_color_manual(values = c("#FF6F20", "#1E90FF")) +
-  labs(x = "Average MET",
-       y = "Predicted Efficiency",
-       title = "Efficiency vs MET") +
+  scale_fill_manual(values = c("#FF6F20", "#1E90FF")) +
+  labs(
+    x = "Average MET (standardized)",
+    y = "Predicted efficiency",
+    title = "Efficiency vs Average MET by period"
+  ) +
   theme_minimal()
 
-################################################################################
-# Mallien yhteenveto
-################################################################################
-summary(m_duration)
-summary(m_score)
-summary(m_efficiency)
+print(p_efficiency)
+
